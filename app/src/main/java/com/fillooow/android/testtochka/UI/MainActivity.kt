@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
         navigation_view.setNavigationItemSelectedListener {
             when (it.itemId){
                 R.id.action_cut -> {
-                    Toast.makeText(this, "Biba boba", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Biba and boba", Toast.LENGTH_LONG).show()
                 }
             }
             true
