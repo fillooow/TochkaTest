@@ -15,8 +15,8 @@
             android:icon="@drawable/ic_launcher_background"/>
 
     <item
-            android:id="@+id/action_new"
-            android:title="New"
+            android:id="@+id/action_login"
+            android:title="Login"
             android:icon="@drawable/ic_launcher_background"
     />
 </menu>

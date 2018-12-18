@@ -26,10 +26,10 @@ import java.util.concurrent.TimeUnit
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        val GITHUB_TAG = "GITHUB_TAG"
+        const val GITHUB_TAG = "GITHUB_TAG"
     }
 
-    val githubApiService by lazy {
+    private val githubApiService by lazy {
         GithubApiService.create()
     }
 
@@ -50,7 +50,6 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.total_found, "0")
 
         initialiseDrawer()
-        itemsList = ArrayList()
 
         rvUsers = findViewById(R.id.rvTest)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
@@ -61,16 +60,10 @@ class MainActivity : AppCompatActivity() {
 
         disposableET = RxTextView.afterTextChangeEvents(inputET)
             .debounce(600, TimeUnit.MILLISECONDS)
-                //TODO: не выход, потому что надо обрабатывать пустые строки
-            //.filter {
-             //  inputET.text.toString() != ""
-            //}
             .subscribe{
-                //if (inputET.text.toString() != "")
-                    getItems(inputET.text.toString())
-                //else
-                //    supportActionBar?.title = getString(R.string.empty_request)
-
+                var searchText = inputET.text.toString()
+                searchText = removeSpaces(searchText)
+                getItems(searchText)
             }
 
     }
@@ -109,7 +102,12 @@ class MainActivity : AppCompatActivity() {
                     drawer_layout.closeDrawers()
                 }
                 R.id.action_vk -> {
-                    val intent = Intent(this, TestActivity::class.java)
+                    val intent = Intent(this, TestVkActivity::class.java)
+                    startActivity(intent)
+                    drawer_layout.closeDrawers()
+                }
+                R.id.action_login -> {
+                    val intent = Intent(this, LoginActivity::class.java)
                     startActivity(intent)
                     drawer_layout.closeDrawers()
                 }
@@ -118,10 +116,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun removeSpaces(text: String) : String{
+        return text.trim().replace("[\\s]{2,}", " ")
+    }
+
     // gets users from Github Open API
     fun getItems(searchText: String){
 
-        if (searchText == "") run {
+        if (searchText == ""){
             runOnUiThread {
                 supportActionBar?.title = getString(R.string.empty_request)
             }
@@ -133,16 +135,16 @@ class MainActivity : AppCompatActivity() {
                 .searchUser(searchText, 1)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
+                .subscribe({
+                        supportActionBar?.title = getString(R.string.total_found, it.total_count.toString())
+                        for (item in it.items!!) {
+                            itemsList.add(item)
+                        }
+                        userAdapter.notifyDataSetChanged()
 
-                    supportActionBar?.title = getString(R.string.total_found, it.total_count.toString())
-                    //Log.d(GITHUB_TAG, it.total_count.toString())
-                    for (item in it.items) {
-                        itemsList.add(item)
-                    }
-                    userAdapter.notifyDataSetChanged()
-                }
+                }, {
+                    Log.d(GITHUB_TAG, it.message)
+                })
         }
-
     }
 }
