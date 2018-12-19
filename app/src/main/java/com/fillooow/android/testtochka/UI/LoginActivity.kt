@@ -174,5 +174,4 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
             VKScope.FRIENDS)
     }
 
-
 }

@@ -5,9 +5,9 @@ import java.util.ArrayList
 object UserSearchModel {
 
     data class Result(
-        var total_count: Int?,
-        var incomplete_results: Boolean?,
-        var items: ArrayList<Items>?,
+        var total_count: Int,
+        var incomplete_results: Boolean,
+        var items: ArrayList<Items>,
 
         // If error occurred
         var message: String?,

@@ -15,3 +15,7 @@ class Application : android.app.Application(){
         AppEventsLogger.activateApp(this)
     }
 }
+
+// TODO:
+// 1) "clear button in edittext android"
+// 2)

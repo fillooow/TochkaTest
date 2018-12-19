@@ -41,13 +41,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity android:name=".TestGoogleActivity">
+        <activity android:name=".Tests.TestGoogleActivity">
         </activity>
-        <activity android:name=".TestFacebookActivity">
+        <activity android:name=".Tests.TestFacebookActivity">
         </activity>
-        <activity android:name=".TestVkActivity">
+        <activity android:name=".Tests.TestVkActivity">
         </activity>
-        <activity android:name=".UI.TestActivity">
+        <activity android:name=".Tests.TestActivity">
         </activity>
         <activity android:name=".UI.LoginActivity">
         </activity>

@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka
+package com.fillooow.android.testtochka.Tests
 
 import android.os.Bundle
 import android.support.v4.app.Fragment
@@ -6,7 +6,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.fillooow.android.testtochka.UI.TestActivity
+import com.fillooow.android.testtochka.R
 import com.google.gson.JsonParser
 import com.vk.sdk.api.*
 import kotlinx.android.synthetic.main.fragment_vk_login.*
@@ -55,7 +55,6 @@ fun getUserInfo(){
 
             val jsonParser = JsonParser()
             val parsedJson = jsonParser.parse(response?.json.toString()).asJsonObject
-            val friendsList: ArrayList<FriendModel> = ArrayList()
 
             parsedJson.get("response").asJsonArray.forEach {
                 Log.d("VkTAG", "first name: ${it.asJsonObject.get("first_name").asString}")

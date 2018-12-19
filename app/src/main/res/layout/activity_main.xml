@@ -21,26 +21,75 @@
                 android:elevation="4dp"
                 android:fitsSystemWindows="true"/>
 
-        <LinearLayout
+        <android.support.constraint.ConstraintLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:weightSum="12"
-                android:orientation="vertical">
+                android:layout_height="match_parent">
 
             <EditText
-                    android:layout_weight="1"
                     android:id="@+id/inputET"
-                    android:hint="Введите логин пользователя"
+                    android:hint="@string/enter_user_login"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"/>
+                    android:layout_height="40dp"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
 
             <android.support.v7.widget.RecyclerView
                     android:id="@+id/rvTest"
-                    android:layout_weight="11"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"/>
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    app:layout_constraintTop_toBottomOf="@+id/inputET"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintBottom_toTopOf="@+id/constraintLayout"/>
 
-        </LinearLayout>
+            <android.support.constraint.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    android:background="#F0F0F0" android:id="@+id/constraintLayout">
+                <Button
+                        android:id="@+id/previousPageButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="@string/back"
+                        android:layout_gravity="center"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent" android:layout_marginBottom="8dp"
+                        android:layout_marginStart="16dp"/>
+
+
+                <TextView
+                        android:id="@+id/pageCounterTV"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:text="@string/page_counter"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        app:layout_constraintStart_toEndOf="@+id/previousPageButton"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
+                        app:layout_constraintEnd_toStartOf="@+id/nextPageButton"
+                        app:layout_constraintHorizontal_bias="0.0"
+                        android:layout_marginTop="20dp"
+                        app:layout_constraintTop_toTopOf="parent"/>
+
+                <Button
+                        android:id="@+id/nextPageButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="@string/next"
+                        app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="16dp"
+                        android:layout_marginBottom="8dp" app:layout_constraintBottom_toBottomOf="parent"/>
+
+            </android.support.constraint.ConstraintLayout>
+
+
+        </android.support.constraint.ConstraintLayout>
 
     </LinearLayout>
 
@@ -67,6 +116,5 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:menu="@menu/drawer_menu"/>
-
     </LinearLayout>
 </android.support.v4.widget.DrawerLayout>
