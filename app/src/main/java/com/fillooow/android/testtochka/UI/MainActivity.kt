@@ -14,6 +14,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.Toast
 import com.facebook.login.LoginManager
+import com.fillooow.android.testtochka.BusinessLogic.ApiError
 import com.fillooow.android.testtochka.R
 import com.fillooow.android.testtochka.Tests.TestFacebookActivity
 import com.fillooow.android.testtochka.Tests.TestGoogleActivity
@@ -25,6 +26,7 @@ import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Picasso
 import com.vk.sdk.VKSdk
@@ -32,6 +34,7 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
+import retrofit2.HttpException
 import java.util.concurrent.TimeUnit
 
 // TODO: Вывести уведомление на максиманой странице
@@ -227,12 +230,12 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             disposable = githubApiService
-                //TODO: pages
                 .searchUser(searchText, page)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({
                     Log.d(GITHUB_TAG, "error message: ${it.message}")
+
                     totalCount = it.total_count
                     totalPages = countPages(totalCount)
                     // TODO: мб в onNext закинуть
@@ -242,10 +245,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     updateUI()
                 }, {
-                    // TODO: достать содержимое сообщения
-                    Log.d(GITHUB_TAG, it.message)
-                    Log.d(GITHUB_TAG, it.localizedMessage)
-                    var jsonError = JsonObject()
+                    val errMessage = ApiError(it).errorMessage
+                    if (errMessage.contains("API rate limit exceeded")){
+                        // TODO: в стрингу загнать
+                        showToast("Превышено число запросов за минуту. Подождите минутку и попробуйте снова")
+                    }
                 })
         }
 
@@ -313,8 +317,6 @@ class MainActivity : AppCompatActivity() {
             when (label) {
                 LoginActivity.GOOGLE_LABEL -> {
                     //TODO: закинуть всё в onStart (и интентовскую хрень тоже)
-
-
                     Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
                         //startLoginIntent()
                     }
@@ -346,7 +348,7 @@ class MainActivity : AppCompatActivity() {
 
     fun showToast(toastText: String){
         runOnUiThread {
-            Toast.makeText(this, toastText, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, toastText, Toast.LENGTH_LONG).show()
         }
     }
 

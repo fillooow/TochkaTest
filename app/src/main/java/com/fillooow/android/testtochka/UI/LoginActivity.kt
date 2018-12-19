@@ -114,7 +114,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
     fun showToast(toastText: String){
         runOnUiThread {
-            Toast.makeText(this, toastText, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, toastText, Toast.LENGTH_LONG).show()
         }
     }
 
