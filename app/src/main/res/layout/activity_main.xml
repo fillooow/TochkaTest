@@ -5,7 +5,8 @@
         xmlns:app="http://schemas.android.com/apk/res-auto"
         android:id="@+id/drawer_layout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        tools:openDrawer="start">
 
     <LinearLayout
             android:layout_width="match_parent"
@@ -93,28 +94,49 @@
 
     </LinearLayout>
 
-    <LinearLayout
+    <android.support.constraint.ConstraintLayout
             android:id="@+id/drawer_header"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
             android:layout_gravity="start"
             android:background="#ebe5ff">
 
+        <ImageView
+                android:id="@+id/drawer_user_photo"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginEnd="16dp"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:src="@drawable/default_user_profile_image_png_5"
+                app:layout_constraintTop_toTopOf="parent"/>
+
         <TextView
-                android:id="@+id/drawer_title"
+                android:id="@+id/drawer_user_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Drawer Header"
-                android:padding="50dp"
+                android:text="User name"
+                android:padding="5dp"
                 android:textSize="25sp"
                 android:textStyle="bold"
-                android:background="#dcfffe"/>
+                android:background="#dcfffe"
+                android:gravity="center"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="12dp"
+                app:layout_constraintTop_toBottomOf="@+id/drawer_user_photo"
+                app:layout_constraintHorizontal_bias="0.0"/>
 
         <android.support.design.widget.NavigationView
                 android:id="@+id/navigation_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:menu="@menu/drawer_menu"/>
-    </LinearLayout>
+                app:menu="@menu/drawer_menu"
+                app:layout_constraintTop_toBottomOf="@+id/drawer_user_name"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"/>
+
+    </android.support.constraint.ConstraintLayout>
 </android.support.v4.widget.DrawerLayout>

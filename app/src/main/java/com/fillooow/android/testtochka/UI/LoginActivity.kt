@@ -1,5 +1,6 @@
 package com.fillooow.android.testtochka.UI
 
+import android.app.Activity
 import android.content.Intent
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
@@ -13,17 +14,30 @@ import com.google.android.gms.auth.api.signin.*
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.SignInButton
 import com.google.android.gms.common.api.GoogleApiClient
+import com.google.gson.JsonParser
 import com.vk.sdk.*
-import com.vk.sdk.api.VKError
+import com.vk.sdk.api.*
 import kotlinx.android.synthetic.main.activity_login.*
 
 class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedListener {
 
-    // Request codes for onActivityResult()
-    val GOOGLE_RC_SIGN_IN: Int = 9001
-    val FB_RC_SIGN_IN: Int = FacebookSdk.getCallbackRequestCodeOffset()
-    val VK_RC_SIGN_IN: Int = VKServiceActivity.VKServiceType.Authorization.outerCode
+    companion object {
+        const val EXTRA_LOGIN_USER_NAME = "com.fillooow.android.testtochka.loginactivity.user_name"
+        const val EXTRA_LOGIN_USER_PHOTO_URL = "com.fillooow.android.testtochka.loginactivity.user_photo_url"
+        const val EXTRA_LOGIN_SOCIAL_NETWORK_LABEL = "com.fillooow.android.testtochka.loginactivity.social_network_name"
+        // social network labels //TODO: шаредпреференсис
+        const val GOOGLE_LABEL: String = "Google"
+        const val FACEBOOK_LABEL: String = "Facebook"
+        const val VKONTAKTE_LABEL: String = "VKontakte"
+        // Request codes for onActivityResult()
+        val GOOGLE_RC_SIGN_IN: Int = 9001
+        val FB_RC_SIGN_IN: Int = FacebookSdk.getCallbackRequestCodeOffset()
+        val VK_RC_SIGN_IN: Int = VKServiceActivity.VKServiceType.Authorization.outerCode
+    }
 
+    var userName: String? = null
+    var userPhotoUrl: String? = null
+    var socialNetworkLabel: String? = null
 
     // google
     lateinit var mGoogleSignInClient: GoogleSignInClient
@@ -44,11 +58,17 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
     // VKSdk подразумевает вызов super после проверок, а не до, как у остальных sdk.
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK) {
+            Toast.makeText(this, getString(R.string.something_wrong), Toast.LENGTH_SHORT).show()
+            return
+        }
+
         when(requestCode){
             GOOGLE_RC_SIGN_IN -> {
                 super.onActivityResult(requestCode, resultCode, data)
                 val result: GoogleSignInResult = Auth.GoogleSignInApi.getSignInResultFromIntent(data)
                 handleSignInResult(result)
+                intentSetResult()
             }
             FB_RC_SIGN_IN -> {
                 super.onActivityResult(requestCode, resultCode, data)
@@ -57,8 +77,8 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
             VK_RC_SIGN_IN -> {
                 if (!VKSdk.onActivityResult(requestCode, resultCode, data, object : VKCallback<VKAccessToken> {
                         override fun onResult(res: VKAccessToken?) {
-                            Log.d("VkTAG", "${res?.accessToken}")
-                            //getUserPhoto()
+                            //Log.d("VkTAG", "${res?.accessToken}")
+                            getUserInfoVk()
                         }
 
                         override fun onError(error: VKError?) {
@@ -68,8 +88,9 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
                 super.onActivityResult(requestCode, resultCode, data)
             }
         }
-    }
 
+
+    }
 
     fun initializeLoginButtons(){
         initializeGoogleButton()
@@ -77,6 +98,19 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         initializeVkButton()
     }
 
+    fun setNameAndUrl(name: String?, url: String?){
+        userName = name
+        userPhotoUrl = url
+    }
+
+    fun intentSetResult() {
+        val loginData = Intent()
+        loginData.putExtra(EXTRA_LOGIN_USER_NAME, userName)
+        loginData.putExtra(EXTRA_LOGIN_USER_PHOTO_URL, userPhotoUrl)
+        loginData.putExtra(EXTRA_LOGIN_SOCIAL_NETWORK_LABEL, socialNetworkLabel)
+        setResult(Activity.RESULT_OK, loginData)
+        finish()
+    }
     // google
 
     private fun initializeGoogleButton() {
@@ -110,7 +144,12 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     fun handleSignInResult(signInResult: GoogleSignInResult){
         if (signInResult.isSuccess){
             val account : GoogleSignInAccount? = signInResult.signInAccount
-            Toast.makeText(this, "Test ${account?.photoUrl}", Toast.LENGTH_LONG).show()
+            val name = account?.displayName
+            val url = account?.photoUrl.toString()
+            socialNetworkLabel = GOOGLE_LABEL
+            setNameAndUrl(name, url)
+            Log.d("GoogleTag", "Name: ${account?.displayName}")
+            Log.d("GoogleTag", "Photo URL: ${account?.photoUrl}")
         } else{
             Toast.makeText(this, "Error occurred" , Toast.LENGTH_LONG).show()
         }
@@ -148,9 +187,12 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     fun getUserInfoFb(result: LoginResult){
         // Log.d("FacebookTag", "Facebook token ${result.accessToken.token}")
         val request = GraphRequest.newMeRequest(result.accessToken){ `object`, response ->
-            Log.d("FacebookTag", response.jsonObject.get("id").toString())
-            Log.d("FacebookTag", response.jsonObject.toString())
-            // https://graph.facebook.com/" + userId + "/picture?width=500&height=500
+            Log.d("FacebookTag", "ID: ${response.jsonObject.get("id")}")
+            val name = response.jsonObject.get("name").toString()
+            val url = "https://graph.facebook.com/${response.jsonObject.get("id")}/picture?width=200&height=200"
+            socialNetworkLabel = FACEBOOK_LABEL
+            setNameAndUrl(name, url)
+            intentSetResult()
         }
 
         val parameters = Bundle()
@@ -170,8 +212,34 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     fun signInVk(){
         VKSdk.login(this,
             VKScope.PHOTOS,
-            VKScope.EMAIL,
-            VKScope.FRIENDS)
+            VKScope.EMAIL)
+    }
+
+    fun getUserInfoVk(){
+        val vkRequest = VKApi.users().get(VKParameters.from(VKApiConst.FIELDS, "photo_200"))
+        vkRequest.executeWithListener(object : VKRequest.VKRequestListener(){
+            override fun onComplete(response: VKResponse?) {
+                super.onComplete(response)
+
+                val jsonParser = JsonParser()
+                val parsedJson = jsonParser.parse(response?.json.toString()).asJsonObject
+                //Log.d("VkTag", "${response?.json}")
+
+                parsedJson.get("response").asJsonArray.forEach {
+                    val name = "${it.asJsonObject.get("first_name").asString} ${it.asJsonObject.get("last_name").asString}"
+                    val url = it.asJsonObject.get("photo_200").asString
+                    setNameAndUrl(name, url)
+                    //Log.d("VkTAG", "Response: ${it.asJsonObject}")
+                }
+                socialNetworkLabel = VKONTAKTE_LABEL
+                intentSetResult()
+            }
+
+            override fun onError(error: VKError?) {
+                super.onError(error)
+                Log.d("VkTAG", "Error")
+            }
+        })
     }
 
 }

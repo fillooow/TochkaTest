@@ -48,7 +48,7 @@ for (userFull in usersArray){
 // https://bitbucket.org/NeuraDev/kotlin-vs-sdk-sample/src/a327a3e97f49cfcb4086ef65e9fd6d1ed425fc8a/app/src/main/java/ru/agaldkov/kotlin_vk_sdk_template/providers/FriendsProvider.kt?at=master&fileviewer=file-view-default
 // TODO
 fun getUserInfo(){
-    var vkRequest = VKApi.users().get(VKParameters.from(VKApiConst.COUNT, 16, VKApiConst.FIELDS, "sex"))
+    val vkRequest = VKApi.users().get(VKParameters.from(VKApiConst.COUNT, 16, VKApiConst.FIELDS, "sex"))
     vkRequest.executeWithListener(object : VKRequest.VKRequestListener(){
         override fun onComplete(response: VKResponse?) {
             super.onComplete(response)

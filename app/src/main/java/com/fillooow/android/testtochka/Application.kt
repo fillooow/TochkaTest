@@ -6,8 +6,6 @@ import com.vk.sdk.VKSdk
 
 class Application : android.app.Application(){
 
-    private val FACEBOOK_REQUEST_CODE = 1212
-
     override fun onCreate() {
         super.onCreate()
         VKSdk.initialize(applicationContext)
@@ -18,4 +16,9 @@ class Application : android.app.Application(){
 
 // TODO:
 // 1) "clear button in edittext android"
-// 2)
+// 2) "retrofit get error body content kotlin"
+//  https://chunksofco.de/getting-json-body-from-retrofit-error-kotlin-6a2281875503
+// 3) дефолтное фото
+// 4) Adapter ?= presenter/VM
+// 5) backstack
+//
