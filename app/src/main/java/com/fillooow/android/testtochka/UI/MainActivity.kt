@@ -1,7 +1,9 @@
 package com.fillooow.android.testtochka.UI
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.app.ActionBarDrawerToggle
 import android.support.v7.widget.LinearLayoutManager
@@ -11,12 +13,17 @@ import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.Toast
+import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.R
 import com.fillooow.android.testtochka.Tests.TestFacebookActivity
 import com.fillooow.android.testtochka.Tests.TestGoogleActivity
 import com.fillooow.android.testtochka.Tests.TestVkActivity
+import com.fillooow.android.testtochka.UI.MainActivity.ConnectivityUtils.hasConnection
 import com.fillooow.android.testtochka.network.GithubApiService
 import com.fillooow.android.testtochka.network.model.UserSearchModel
+import com.google.android.gms.auth.api.Auth
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.GoogleApiClient
 import com.google.gson.JsonObject
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Picasso
@@ -40,6 +47,27 @@ class MainActivity : AppCompatActivity() {
         private const val RC_LOGIN = 9991
     }
 
+    object ConnectivityUtils{
+        fun hasConnection(context: Context): Boolean{
+            val cm: ConnectivityManager = context.applicationContext
+                .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            // TODO: чекнуть
+            /*var connectInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI)
+            if (connectInfo != null && connectInfo.isConnected){
+                return true
+            }
+            connectInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE)
+            if (connectInfo != null && connectInfo.isConnected){
+                return true
+            }*/
+            var connectInfo = cm.activeNetworkInfo
+            if (connectInfo != null && connectInfo.isConnected){
+                return true
+            }
+            return false
+        }
+    }
+
     private val githubApiService by lazy {
         GithubApiService.create()
     }
@@ -56,6 +84,8 @@ class MainActivity : AppCompatActivity() {
     private var isNextBtnEnabled = false
     private var isPrevBtnEnabled = false
     private var itemsList = ArrayList<UserSearchModel.Items>()
+    private lateinit var gso: GoogleSignInOptions
+    private lateinit var mGoogleApiClient: GoogleApiClient
 
     private lateinit var userAdapter: UserSearchAdapter
     private lateinit var rvUsers: RecyclerView
@@ -87,9 +117,13 @@ class MainActivity : AppCompatActivity() {
         disposableET = RxTextView.afterTextChangeEvents(inputET)
             .debounce(600, TimeUnit.MILLISECONDS)
             .subscribe{
-                var searchText = inputET.text.toString()
-                searchText = removeSpaces(searchText)
-                loadUserItems(searchText, currentPage)
+                if(hasConnection(applicationContext)) {
+                    var searchText = inputET.text.toString()
+                    searchText = removeSpaces(searchText)
+                    loadUserItems(searchText, currentPage)
+                } else {
+                    showToast(getString(R.string.no_internet_connection))
+                }
             }
 
 
@@ -275,29 +309,55 @@ class MainActivity : AppCompatActivity() {
 
     // TODO: можно и переименовать
     fun setupLogOutBtn(label: String?){
-        when(label){
-            LoginActivity.GOOGLE_LABEL -> {
+        if (hasConnection(applicationContext)) {
+            when (label) {
+                LoginActivity.GOOGLE_LABEL -> {
+                    //TODO: закинуть всё в onStart (и интентовскую хрень тоже)
 
-            }
-            LoginActivity.FACEBOOK_LABEL-> {
 
+                    Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
+                        //startLoginIntent()
+                    }
+                }
+                LoginActivity.FACEBOOK_LABEL -> {
+                    LoginManager.getInstance().logOut()
+                }
+                LoginActivity.VKONTAKTE_LABEL -> {
+                    VKSdk.logout()
+                }
+                null -> {
+                    Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
+                }
             }
-            LoginActivity.VKONTAKTE_LABEL ->{
-                VKSdk.logout()
-            }
-            null -> {
-                Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
-            }
-            else -> {
-                Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
-            }
+            startLoginIntent()
+        } else {
+            showToast(getString(R.string.no_internet_connection))
         }
-        startLoginIntent()
     }
 
     fun startLoginIntent(){
         val intent = Intent(this, LoginActivity::class.java)
         drawer_layout.closeDrawers()
         startActivityForResult(intent, RC_LOGIN)
+    }
+
+    fun showToast(toastText: String){
+        runOnUiThread {
+            Toast.makeText(this, toastText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .build()
+        mGoogleApiClient = GoogleApiClient.Builder(this)
+            .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
+            .build()
+        mGoogleApiClient.connect()
     }
 }

@@ -111,6 +111,13 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         setResult(Activity.RESULT_OK, loginData)
         finish()
     }
+
+    fun showToast(toastText: String){
+        runOnUiThread {
+            Toast.makeText(this, toastText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // google
 
     private fun initializeGoogleButton() {
@@ -137,8 +144,12 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     private fun signInGoogle() {
-        var signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient)
-        startActivityForResult(signInIntent, GOOGLE_RC_SIGN_IN)
+        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+            var signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient)
+            startActivityForResult(signInIntent, GOOGLE_RC_SIGN_IN)
+        } else {
+            showToast(getString(R.string.no_internet_connection))
+        }
     }
 
     fun handleSignInResult(signInResult: GoogleSignInResult){
@@ -169,19 +180,23 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     fun signInFB(){
-        signInFacebookButton.registerCallback(callbackManager, object : FacebookCallback<LoginResult> {
-            override fun onSuccess(result: LoginResult) {
-                getUserInfoFb(result)
-            }
+        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+            signInFacebookButton.registerCallback(callbackManager, object : FacebookCallback<LoginResult> {
+                override fun onSuccess(result: LoginResult) {
+                    getUserInfoFb(result)
+                }
 
-            override fun onCancel() {
-                Log.d("FacebookTag", "Facebook onCancel")
-            }
+                override fun onCancel() {
+                    Log.d("FacebookTag", "Facebook onCancel")
+                }
 
-            override fun onError(error: FacebookException?) {
-                Log.d("FacebookTag", "Facebook onError: $error")
-            }
-        })
+                override fun onError(error: FacebookException?) {
+                    Log.d("FacebookTag", "Facebook onError: $error")
+                }
+            })
+        } else {
+            showToast(getString(R.string.no_internet_connection))
+        }
     }
 
     fun getUserInfoFb(result: LoginResult){
@@ -210,9 +225,15 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     fun signInVk(){
-        VKSdk.login(this,
-            VKScope.PHOTOS,
-            VKScope.EMAIL)
+        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+            VKSdk.login(
+                this,
+                VKScope.PHOTOS,
+                VKScope.EMAIL
+            )
+        } else {
+            showToast(getString(R.string.no_internet_connection))
+        }
     }
 
     fun getUserInfoVk(){

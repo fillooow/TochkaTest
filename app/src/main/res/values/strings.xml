@@ -23,4 +23,5 @@
     <string name="something_wrong">Что-то пошло не по плану, наши программисты уже разбираются с вашей проблемой
     </string>
     <string name="logout_null_error">Ошибка, возвращение на страницу авторизации</string>
+    <string name="no_internet_connection">Подключение к интернету отсутствует</string>
 </resources>
