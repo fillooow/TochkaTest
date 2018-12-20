@@ -26,6 +26,7 @@ import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Picasso
 import com.vk.sdk.VKSdk
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
@@ -36,11 +37,20 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
         private const val MAX_ELEMENTS = 1000 // Для OpenAPI гитхаба, можно получить лишь первую 1000 результатов.
-        private const val MAX_PAGE = (MAX_ELEMENTS/ELEMENTS_PER_PAGE) + 1 // Исходя из количества доступных результатов
-        // и количества отображаемых элементов, определяем максимально доступную страницу
+        private const val MAX_PAGE = (MAX_ELEMENTS/ELEMENTS_PER_PAGE) + 1 // Определяем максимально доступную
+        // страницу исходя из количества доступных результатов и отображаемых элементов
 
         private const val GITHUB_TAG = "GITHUB_TAG"
+        // Request code for loginIntent at onActivityResult()
         private const val RC_LOGIN = 9991
+
+        // for instance state
+        private const val STATE_LAST_SEARCH_TEXT = "lastSearchText"
+        private const val STATE_IS_NEXT_BTN_ENABLED = "isNextBtnEnabled"
+        private const val STATE_IS_PREV_BTN_ENABLED = "isPrevBtnEnabled"
+        private const val STATE_TOTAL_PAGES = "totalPages"
+        private const val STATE_CURRENT_PAGE = "currentPage"
+        private const val STATE_TOTAL_COUNT = "totalCount"
     }
 
     object ConnectivityUtils{
@@ -59,11 +69,11 @@ class MainActivity : AppCompatActivity() {
         GithubApiService.create()
     }
 
-    var disposable: Disposable? = null
-    var disposableET: Disposable? = null
+    private var compositeDisposable = CompositeDisposable()
 
     private var userName: String? = null
     private var userPhotoUrl: String? = null
+    private var lastSearchText: String = ""
     private var socialNetworkLabel: String? = null //TODO: если null - кидаем на логин активити
     private var totalPages = 0
     private var totalCount = 0 // Найдено элементов
@@ -84,6 +94,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        currentPageBeforeChanging = currentPage
+
         setSupportActionBar(toolbar)
 
         initialiseDrawer()
@@ -100,20 +112,26 @@ class MainActivity : AppCompatActivity() {
             loadPrevPage()
         }
 
+        restoreInstanceState(savedInstanceState)
+
         updateUI()
 
-        disposableET = RxTextView.afterTextChangeEvents(inputET)
-            .debounce(600, TimeUnit.MILLISECONDS)
-            .subscribe{
-                if(hasConnection(applicationContext)) {
-                    hasBtnClicked = false
-                    var searchText = inputET.text.toString()
-                    searchText = removeSpaces(searchText)
-                    loadUserItems(searchText, currentPage)
-                } else {
-                    showToast(getString(R.string.no_internet_connection))
+        compositeDisposable.add(
+            RxTextView.afterTextChangeEvents(inputET)
+                .debounce(600, TimeUnit.MILLISECONDS)
+                .subscribe{
+                    if(hasConnection(applicationContext)) {
+                        hasBtnClicked = false
+                        var searchText = inputET.text.toString()
+                        searchText = removeSpaces(searchText)
+                        if (searchText != lastSearchText) {
+                            loadUserItems(searchText, currentPage)
+                        }
+                    } else {
+                        showToast(getString(R.string.no_internet_connection))
+                    }
                 }
-            }
+        )
 
 
     }
@@ -202,7 +220,8 @@ class MainActivity : AppCompatActivity() {
                 supportActionBar?.title = getString(R.string.empty_request)
             }
         } else {
-            disposable = githubApiService
+            compositeDisposable.add(
+                githubApiService
                 .searchUser(searchText, page)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -219,9 +238,9 @@ class MainActivity : AppCompatActivity() {
                         showToast(getString(R.string.API_rate_limit_exceeded))
                         currentPage = currentPageBeforeChanging
                     }
-                })
+                }))
         }
-
+        lastSearchText = searchText
     }
 
     private fun countPages(totalCount: Int): Int {
@@ -327,6 +346,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // TODO: onCreate
+    override fun onSaveInstanceState(outState: Bundle?) {
+        super.onSaveInstanceState(outState)
+        outState?.putString(STATE_LAST_SEARCH_TEXT, lastSearchText)
+        outState?.putBoolean(STATE_IS_NEXT_BTN_ENABLED, isNextBtnEnabled)
+        outState?.putBoolean(STATE_IS_PREV_BTN_ENABLED, isPrevBtnEnabled)
+        outState?.putInt(STATE_TOTAL_PAGES, totalPages)
+        outState?.putInt(STATE_CURRENT_PAGE, currentPage)
+        outState?.putInt(STATE_TOTAL_COUNT, totalCount)
+    }
+
+    fun restoreInstanceState(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null) {
+            lastSearchText = savedInstanceState.getString(STATE_LAST_SEARCH_TEXT)
+            isNextBtnEnabled = savedInstanceState.getBoolean(STATE_IS_NEXT_BTN_ENABLED)
+            isPrevBtnEnabled = savedInstanceState.getBoolean(STATE_IS_PREV_BTN_ENABLED)
+            totalPages = savedInstanceState.getInt(STATE_TOTAL_PAGES)
+            currentPage = savedInstanceState.getInt(STATE_CURRENT_PAGE)
+            totalCount = savedInstanceState.getInt(STATE_TOTAL_COUNT)
+            Log.d(GITHUB_TAG, "onRestoreState")
+        }
+    }
+
+
     override fun onStart() {
         super.onStart()
         gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -336,6 +379,11 @@ class MainActivity : AppCompatActivity() {
             .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
             .build()
         mGoogleApiClient.connect()
+    }
+
+    override fun onDestroy() {
+        compositeDisposable.clear()
+        super.onDestroy()
     }
 }
 
