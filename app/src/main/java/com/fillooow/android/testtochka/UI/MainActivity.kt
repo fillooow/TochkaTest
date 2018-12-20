@@ -16,17 +16,12 @@ import android.widget.Toast
 import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BusinessLogic.ApiError
 import com.fillooow.android.testtochka.R
-import com.fillooow.android.testtochka.Tests.TestFacebookActivity
-import com.fillooow.android.testtochka.Tests.TestGoogleActivity
-import com.fillooow.android.testtochka.Tests.TestVkActivity
 import com.fillooow.android.testtochka.UI.MainActivity.ConnectivityUtils.hasConnection
 import com.fillooow.android.testtochka.network.GithubApiService
 import com.fillooow.android.testtochka.network.model.UserSearchModel
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Picasso
 import com.vk.sdk.VKSdk
@@ -34,10 +29,7 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
-import retrofit2.HttpException
 import java.util.concurrent.TimeUnit
-
-// TODO: Вывести уведомление на максиманой странице
 
 class MainActivity : AppCompatActivity() {
 
@@ -46,6 +38,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_ELEMENTS = 1000 // Для OpenAPI гитхаба, можно получить лишь первую 1000 результатов.
         private const val MAX_PAGE = (MAX_ELEMENTS/ELEMENTS_PER_PAGE) + 1 // Исходя из количества доступных результатов
         // и количества отображаемых элементов, определяем максимально доступную страницу
+
         private const val GITHUB_TAG = "GITHUB_TAG"
         private const val RC_LOGIN = 9991
     }
@@ -54,15 +47,6 @@ class MainActivity : AppCompatActivity() {
         fun hasConnection(context: Context): Boolean{
             val cm: ConnectivityManager = context.applicationContext
                 .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            // TODO: чекнуть
-            /*var connectInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI)
-            if (connectInfo != null && connectInfo.isConnected){
-                return true
-            }
-            connectInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE)
-            if (connectInfo != null && connectInfo.isConnected){
-                return true
-            }*/
             var connectInfo = cm.activeNetworkInfo
             if (connectInfo != null && connectInfo.isConnected){
                 return true
@@ -84,8 +68,10 @@ class MainActivity : AppCompatActivity() {
     private var totalPages = 0
     private var totalCount = 0 // Найдено элементов
     private var currentPage = 0
+    private var currentPageBeforeChanging = 0 // Required to prevent wrong changing the counter of the current page
     private var isNextBtnEnabled = false
     private var isPrevBtnEnabled = false
+    private var hasBtnClicked = false
     private var itemsList = ArrayList<UserSearchModel.Items>()
     private lateinit var gso: GoogleSignInOptions
     private lateinit var mGoogleApiClient: GoogleApiClient
@@ -97,7 +83,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        Log.d(GITHUB_TAG, MAX_PAGE.toString())
 
         setSupportActionBar(toolbar)
 
@@ -121,6 +106,7 @@ class MainActivity : AppCompatActivity() {
             .debounce(600, TimeUnit.MILLISECONDS)
             .subscribe{
                 if(hasConnection(applicationContext)) {
+                    hasBtnClicked = false
                     var searchText = inputET.text.toString()
                     searchText = removeSpaces(searchText)
                     loadUserItems(searchText, currentPage)
@@ -174,52 +160,39 @@ class MainActivity : AppCompatActivity() {
         drawableToggle.syncState()
 
         navigation_view.setNavigationItemSelectedListener {
+            drawer_layout.closeDrawers()
             when (it.itemId){
-                R.id.action_google -> {
-                    val intent = Intent(this, TestGoogleActivity::class.java)
-                    drawer_layout.closeDrawers()
-                    startActivity(intent)
-                }
-                R.id.action_facebook -> {
-                    val intent = Intent(this, TestFacebookActivity::class.java)
-                    drawer_layout.closeDrawers()
-                    startActivity(intent)
-                }
-                R.id.action_vk -> {
-                    val intent = Intent(this, TestVkActivity::class.java)
-                    drawer_layout.closeDrawers()
-                    startActivity(intent)
-                }
                 R.id.action_login -> {
                     startLoginIntent()
                 }
                 R.id.action_logout -> {
-                    setupLogOutBtn(socialNetworkLabel)
+                    initializeLogoutBtn(socialNetworkLabel)
                 }
             }
-            //TODO: перенести все closeDrawers() сюда
             true
         }
     }
 
-    // TODO: проверка, если слишком в минус уйти
-
-    fun loadNextPage(){
+    private fun loadNextPage(){
+        hasBtnClicked = true
+        currentPageBeforeChanging = currentPage
         currentPage++
         loadUserItems(inputET.text.toString(), currentPage)
     }
 
-    fun loadPrevPage(){
+    private fun loadPrevPage(){
+        hasBtnClicked = true
+        currentPageBeforeChanging = currentPage
         currentPage--
         loadUserItems(inputET.text.toString(), currentPage)
     }
 
-    fun removeSpaces(text: String) : String{
+    private fun removeSpaces(text: String) : String{
         return text.trim().replace("[\\s]{2,}", " ")
     }
 
     // gets users from Github Open API
-    fun loadUserItems(searchText: String, page: Int){
+    private fun loadUserItems(searchText: String, page: Int){
         itemsList.clear()
         if (searchText == ""){
             runOnUiThread {
@@ -234,12 +207,8 @@ class MainActivity : AppCompatActivity() {
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({
-                    Log.d(GITHUB_TAG, "error message: ${it.message}")
-
                     totalCount = it.total_count
                     totalPages = countPages(totalCount)
-                    // TODO: мб в onNext закинуть
-                    // TODO: прочекать, мб я уже в onNext и делаю всё это 30 раз (но вроде нет)
                     for (item in it.items) {
                         itemsList.add(item)
                     }
@@ -247,22 +216,22 @@ class MainActivity : AppCompatActivity() {
                 }, {
                     val errMessage = ApiError(it).errorMessage
                     if (errMessage.contains("API rate limit exceeded")){
-                        // TODO: в стрингу загнать
-                        showToast("Превышено число запросов за минуту. Подождите минутку и попробуйте снова")
+                        showToast(getString(R.string.API_rate_limit_exceeded))
+                        currentPage = currentPageBeforeChanging
                     }
                 })
         }
 
     }
 
-    fun countPages(totalCount: Int): Int {
+    private fun countPages(totalCount: Int): Int {
         if (totalCount <= 0) {
             return 0
         }
         return (totalCount/ELEMENTS_PER_PAGE) + 1
     }
 
-    fun updateUI(){
+    private fun updateUI(){
         setUpCurrentPage()
         pageCounterTV.text = getString(R.string.page_counter, currentPage, totalPages)
         supportActionBar?.title = getString(R.string.total_found, totalCount)
@@ -270,7 +239,10 @@ class MainActivity : AppCompatActivity() {
         userAdapter.notifyDataSetChanged()
     }
 
-    fun setUpCurrentPage() {
+    private fun setUpCurrentPage() {
+        if (!hasBtnClicked){
+            currentPage = 1
+        }
         if (totalPages == 0){
             currentPage = 0
         }
@@ -279,10 +251,11 @@ class MainActivity : AppCompatActivity() {
                 currentPage = 1
             }
         }
+
         setUpSearchButtons()
     }
 
-    fun setUpSearchButtons(){
+    private fun setUpSearchButtons(){
         when{
             currentPage == 0 -> {
                 isNextBtnEnabled = false
@@ -292,31 +265,33 @@ class MainActivity : AppCompatActivity() {
                 isNextBtnEnabled = totalPages >= 2
                 isPrevBtnEnabled = false
             }
+            currentPage == MAX_PAGE -> {
+                isNextBtnEnabled = false
+                showToast(getString(R.string.reached_max_page))
+            }
             currentPage > 1 -> {
                 isNextBtnEnabled = totalPages > currentPage
                 isPrevBtnEnabled = currentPage > 1
             }
-            currentPage == MAX_PAGE -> {
-                isNextBtnEnabled = false
-            }
+
         }
         nextPageButton.isEnabled = isNextBtnEnabled
         previousPageButton.isEnabled = isPrevBtnEnabled
     }
 
-    fun setUserPhoto(url: String?){
+    private fun setUserPhoto(url: String?){
         // google+ may return "null" as an answer, if user don't have profile picture
         Picasso.get()
             .load(url)
+            .error(R.drawable.default_user_profile_image_png_5)
             .into(drawer_user_photo)
+
     }
 
-    // TODO: можно и переименовать
-    fun setupLogOutBtn(label: String?){
+    private fun initializeLogoutBtn(label: String?){
         if (hasConnection(applicationContext)) {
             when (label) {
                 LoginActivity.GOOGLE_LABEL -> {
-                    //TODO: закинуть всё в onStart (и интентовскую хрень тоже)
                     Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
                         //startLoginIntent()
                     }
@@ -340,13 +315,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun startLoginIntent(){
+    private fun startLoginIntent(){
         val intent = Intent(this, LoginActivity::class.java)
         drawer_layout.closeDrawers()
         startActivityForResult(intent, RC_LOGIN)
     }
 
-    fun showToast(toastText: String){
+    private fun showToast(toastText: String){
         runOnUiThread {
             Toast.makeText(this, toastText, Toast.LENGTH_LONG).show()
         }
@@ -363,3 +338,5 @@ class MainActivity : AppCompatActivity() {
         mGoogleApiClient.connect()
     }
 }
+
+// TODO: Жизненный цикл

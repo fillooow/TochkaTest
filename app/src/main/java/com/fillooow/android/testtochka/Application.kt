@@ -16,9 +16,7 @@ class Application : android.app.Application(){
 
 // TODO:
 // 1) "clear button in edittext android"
-// 2) "retrofit get error body content kotlin"
-//  https://chunksofco.de/getting-json-body-from-retrofit-error-kotlin-6a2281875503
-// 3) дефолтное фото
-// 4) Adapter ?= presenter/VM
-// 5) backstack
+// 2) дефолтное фото
+// 3) Adapter ?= presenter/VM
+// 4) backstack
 //
