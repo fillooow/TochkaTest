@@ -299,7 +299,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setUserPhoto(url: String?){
-        // google+ may return "null" as an answer, if user don't have profile picture
+        // Google+ may return "null" as an answer, if user don't have profile picture
         Picasso.get()
             .load(url)
             .error(R.drawable.default_user_profile_image_png_5)
