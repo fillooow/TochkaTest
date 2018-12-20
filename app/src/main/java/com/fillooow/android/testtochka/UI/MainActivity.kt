@@ -209,7 +209,7 @@ class MainActivity : AppCompatActivity() {
         return text.trim().replace("[\\s]{2,}", " ")
     }
 
-    // gets users from Github Open API
+    // Gets users from Github Open API
     private fun loadUserItems(searchText: String, page: Int){
         itemsList.clear()
         if (searchText == ""){
