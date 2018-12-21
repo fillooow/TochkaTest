@@ -14,17 +14,22 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.Toast
 import com.facebook.login.LoginManager
-import com.fillooow.android.testtochka.BusinessLogic.ApiError
+import com.fillooow.android.testtochka.BusinessLogic.database.*
+import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
 import com.fillooow.android.testtochka.R
 import com.fillooow.android.testtochka.UI.MainActivity.ConnectivityUtils.hasConnection
-import com.fillooow.android.testtochka.network.GithubApiService
-import com.fillooow.android.testtochka.network.model.UserSearchModel
+import com.fillooow.android.testtochka.BusinessLogic.network.GithubApiService
+import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
 import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Picasso
 import com.vk.sdk.VKSdk
+import io.reactivex.Completable
+import io.reactivex.CompletableObserver
+import io.reactivex.Single
+import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
@@ -69,12 +74,19 @@ class MainActivity : AppCompatActivity() {
         GithubApiService.create()
     }
 
+    private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
+    private var completableSetLabelDB: Completable? = null
+    //private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
     private var compositeDisposable = CompositeDisposable()
+    private var db: GithubUserSearchDataBase? = null
+    private var socialDB: SocialNetworkDataBase? = null
+    //private lateinit var mDbWorkerThread: DbWorkerThread
+    //private val mUiHandler = Handler()
 
     private var userName: String? = null
     private var userPhotoUrl: String? = null
-    private var lastSearchText: String = ""
-    private var socialNetworkLabel: String? = null //TODO: если null - кидаем на логин активити
+    private var lastSearchText: String? = null
+    private var socialNetworkLabel: String? = "biba"//null //TODO: если null - кидаем на логин активити
     private var totalPages = 0
     private var totalCount = 0 // Найдено элементов
     private var currentPage = 0
@@ -94,14 +106,32 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        //mDbWorkerThread = DbWorkerThread("dbWorkerThread")
+        //mDbWorkerThread.start()
+
+        db = GithubUserSearchDataBase.getInstance(this)
+        socialDB = SocialNetworkDataBase.getInstance(this)
+
+        clearNetworkDB()
+
+        singleGetLabelDB = socialDB?.socialNetworkDataDao()?.getAll()
+
         currentPageBeforeChanging = currentPage
 
         setSupportActionBar(toolbar)
+
+        saveSocialNetworkLabel()
+        //loadSocialNetworkLabel()
+
+
+
+
 
         initialiseDrawer()
         rvUsers = findViewById(R.id.rvTest)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
         //loadUserItems("biba")
+        socialNetworkLabel = "boba"
         userAdapter = UserSearchAdapter(itemsList, applicationContext)
         rvUsers.adapter = userAdapter
 
@@ -116,6 +146,9 @@ class MainActivity : AppCompatActivity() {
 
         updateUI()
 
+        loadSocialNetworkLabel()
+        //Log.d(GITHUB_TAG, socialNetworkLabel)
+
         compositeDisposable.add(
             RxTextView.afterTextChangeEvents(inputET)
                 .debounce(600, TimeUnit.MILLISECONDS)
@@ -124,7 +157,9 @@ class MainActivity : AppCompatActivity() {
                         hasBtnClicked = false
                         var searchText = inputET.text.toString()
                         searchText = removeSpaces(searchText)
-                        if (searchText != lastSearchText) {
+                        if ((lastSearchText == "") && (searchText == "")){
+                            supportActionBar?.title = getString(R.string.empty_request)
+                        } else if (searchText != lastSearchText){
                             loadUserItems(searchText, currentPage)
                         }
                     } else {
@@ -139,6 +174,8 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != Activity.RESULT_OK){
+            // Если была нажата кнопка Назад в LoginActivity или результатом пришла неудача
+            finish()
             return
         }
         if(requestCode == RC_LOGIN){
@@ -151,8 +188,7 @@ class MainActivity : AppCompatActivity() {
                 userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
             }
             setUserPhoto(userPhotoUrl)
-            //Log.d(GITHUB_TAG, data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME))
-            //Log.d(GITHUB_TAG, data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL))
+            //clearNetworkDB()
         }
     }
 
@@ -231,6 +267,7 @@ class MainActivity : AppCompatActivity() {
                     for (item in it.items) {
                         itemsList.add(item)
                     }
+                    //insertAtDb(it.items)
                     updateUI()
                 }, {
                     val errMessage = ApiError(it).errorMessage
@@ -309,6 +346,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializeLogoutBtn(label: String?){
         if (hasConnection(applicationContext)) {
+            socialNetworkLabel = null
             when (label) {
                 LoginActivity.GOOGLE_LABEL -> {
                     Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
@@ -346,7 +384,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // TODO: onCreate
     override fun onSaveInstanceState(outState: Bundle?) {
         super.onSaveInstanceState(outState)
         outState?.putString(STATE_LAST_SEARCH_TEXT, lastSearchText)
@@ -369,9 +406,152 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // TODO db
+    /*fun insertAtDb(itemsList: ArrayList<UserSearchModel.Items>){
+        val task = Runnable {
+            var searchData = GithubUserSearchData()
+            for (item in itemsList){
+                searchData.githubID = item.id
+                searchData.login = item.login
+                searchData.avatarUrl = item.avatar_url
+                searchData.type = item.type
+                db?.githubUserSearchDataDao()?.insert(searchData)
+            }
+
+        }
+        mDbWorkerThread.postTask(task)
+
+    }*/
+
+    /*fun loadFromDb() {
+        val task = Runnable {
+            val userData = db?.githubUserSearchDataDao()?.getAll()
+            mUiHandler.post {
+                if (userData?.size != 0){
+                    itemsList.clear()
+                    var userItem: UserSearchModel.Items
+                    if (userData != null) {
+                        for (item in userData){
+                            userItem = UserSearchModel.Items(
+                                item.login,
+                                item.githubID,
+                                item.type,
+                                item.avatarUrl)
+                            itemsList.add(userItem)
+                        }
+                    }
+                }
+            }
+        }
+        mDbWorkerThread.postTask(task)
+    }*/
+
+    fun loadSocialNetworkLabel() {
+        singleGetLabelDB?.subscribeOn(Schedulers.io())
+            ?.observeOn(AndroidSchedulers.mainThread())
+            ?.subscribe(object : SingleObserver<List<SocialNetworkData>>{
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onSuccess(t: List<SocialNetworkData>) {
+                    if (t.isNotEmpty())
+                        socialNetworkLabel = t[0].label
+                    Log.d(GITHUB_TAG, socialNetworkLabel)
+
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+
+        /*val task = Runnable {
+            val networkLabel = socialDB?.socialNetworkDataDao()?.getAll()
+            mUiHandler.post{
+                Log.d(GITHUB_TAG, "saved label: $networkLabel")
+                if (networkLabel != null){
+                    socialNetworkLabel = networkLabel[0].label
+                }
+                checkSocialNetworkLabel(socialNetworkLabel)
+            }
+        }
+        mDbWorkerThread.postTask(task)*/
+
+    }
+
+    fun saveSocialNetworkLabel(){
+        val socialNetworkData = SocialNetworkData()
+        socialNetworkData.label = socialNetworkLabel
+        Completable.fromAction {
+            socialDB?.socialNetworkDataDao()
+                ?.insert(socialNetworkData)
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+        /*val task = Runnable {
+            val networkLabel = SocialNetworkData()
+            networkLabel.label = socialNetworkLabel
+            socialDB?.socialNetworkDataDao()?.insert(networkLabel)
+        }
+        mDbWorkerThread.postTask(task)*/
+
+    }
+
+    fun clearNetworkDB() {
+        Completable.fromAction {
+            socialDB?.socialNetworkDataDao()
+                ?.deleteAll()
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+        /*val task = Runnable {
+            socialDB?.socialNetworkDataDao()?.deleteAll()
+            saveSocialNetworkLabel()
+        }
+        mDbWorkerThread.postTask(task)*/
+    }
+
+    fun checkSocialNetworkLabel(label: String?) {
+        when (label){
+            LoginActivity.GOOGLE_LABEL -> {}
+            LoginActivity.FACEBOOK_LABEL -> {}
+            LoginActivity.VKONTAKTE_LABEL -> {
+
+            }
+            null -> {
+                startLoginIntent()
+            }
+        }
+    }
 
     override fun onStart() {
         super.onStart()
+
+        // TODO: google
         gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .build()
@@ -381,8 +561,16 @@ class MainActivity : AppCompatActivity() {
         mGoogleApiClient.connect()
     }
 
+    override fun onStop() {
+        super.onStop()
+        //saveSocialNetworkLabel()
+    }
+
     override fun onDestroy() {
         compositeDisposable.clear()
+        //mDbWorkerThread.quit()
+        GithubUserSearchDataBase.destroyInstance()
+        SocialNetworkDataBase.destroyInstance()
         super.onDestroy()
     }
 }

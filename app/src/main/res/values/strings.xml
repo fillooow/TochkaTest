@@ -17,7 +17,7 @@
     <string name="back">back</string>
     <string name="user_login">Login: %s</string>
     <string name="user_name">Name: %s</string>
-    <string name="user_id">ID: %s</string>
+    <string name="user_id">GitHub ID: %s</string>
     <string name="user_type">User type: %s</string>
     <string name="enter_user_login">Enter user login</string>
     <string name="something_wrong">Что-то пошло не по плану, наши программисты уже разбираются с вашей проблемой

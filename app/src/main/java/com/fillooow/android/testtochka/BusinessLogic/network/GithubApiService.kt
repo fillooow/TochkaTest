@@ -1,6 +1,6 @@
-package com.fillooow.android.testtochka.network
+package com.fillooow.android.testtochka.BusinessLogic.network
 
-import com.fillooow.android.testtochka.network.model.UserSearchModel
+import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
 import io.reactivex.Observable
 import retrofit2.Retrofit
 import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory

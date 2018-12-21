@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.BusinessLogic
+package com.fillooow.android.testtochka.BusinessLogic.network
 
 import com.google.gson.JsonParser
 import retrofit2.HttpException
