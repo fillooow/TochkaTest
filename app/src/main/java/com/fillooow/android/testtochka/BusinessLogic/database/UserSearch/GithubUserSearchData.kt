@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.BusinessLogic.database
+package com.fillooow.android.testtochka.BusinessLogic.database.UserSearch
 
 import android.arch.persistence.room.ColumnInfo
 import android.arch.persistence.room.Entity

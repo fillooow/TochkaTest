@@ -13,10 +13,3 @@ class Application : android.app.Application(){
         AppEventsLogger.activateApp(this)
     }
 }
-
-// TODO:
-// 1) "clear button in edittext android"
-// 2) дефолтное фото
-// 3) Adapter ?= presenter/VM
-// 4) backstack
-//

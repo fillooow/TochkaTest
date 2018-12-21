@@ -11,7 +11,7 @@
     <string name="total_found">Found: %d</string>
     <string name="empty_request">Request is empty :c</string>
     <string name="sign_in_to_continue">Sign in using one of the social networks to continue</string>
-    <string name="label_vkontakte">ВКонтакте</string>
+    <string name="label_vkontakte">VKontakte</string>
     <string name="page_counter">Page %1$d of %2$d</string>
     <string name="next">next</string>
     <string name="back">back</string>
@@ -20,11 +20,10 @@
     <string name="user_id">GitHub ID: %s</string>
     <string name="user_type">User type: %s</string>
     <string name="enter_user_login">Enter user login</string>
-    <string name="something_wrong">Что-то пошло не по плану, наши программисты уже разбираются с вашей проблемой
-    </string>
-    <string name="logout_null_error">Ошибка, возвращение на страницу авторизации</string>
-    <string name="no_internet_connection">Подключение к интернету отсутствует</string>
-    <string name="API_rate_limit_exceeded">Превышено число запросов за минуту. Подождите минутку и попробуйте снова
-    </string>
-    <string name="reached_max_page">Достигнута максимальная страница для запросов на OpenAPI Github</string>
+    <string name="something_wrong">Something wrong. But keep calm, we are already repairing this bug</string>
+    <string name="logout_null_error">Error, return to the login page</string>
+    <string name="no_internet_connection">Missing Internet connection</string>
+    <string name="API_rate_limit_exceeded">Requests exceeded per minute. Wait a minute and try again.</string>
+    <string name="reached_max_page">Reached the maximum page for requests for OpenAPI Github</string>
+    <string name="session_token_expired">Session token expired</string>
 </resources>

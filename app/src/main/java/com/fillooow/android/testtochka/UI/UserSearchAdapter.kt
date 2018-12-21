@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.UI
+package com.fillooow.android.testtochka.ui
 
 import android.content.Context
 import android.support.v7.widget.RecyclerView

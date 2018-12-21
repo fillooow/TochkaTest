@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.BusinessLogic.database
+package com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork
 
 import android.arch.persistence.room.Dao
 import android.arch.persistence.room.Insert
