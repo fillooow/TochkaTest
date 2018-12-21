@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.network.model
+package com.fillooow.android.testtochka.BusinessLogic.network.model
 
 import java.util.ArrayList
 

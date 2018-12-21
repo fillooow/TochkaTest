@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.UI
+package com.fillooow.android.testtochka.ui
 
 import android.app.Activity
 import android.content.Intent
@@ -25,7 +25,6 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         const val EXTRA_LOGIN_USER_NAME = "com.fillooow.android.testtochka.loginactivity.user_name"
         const val EXTRA_LOGIN_USER_PHOTO_URL = "com.fillooow.android.testtochka.loginactivity.user_photo_url"
         const val EXTRA_LOGIN_SOCIAL_NETWORK_LABEL = "com.fillooow.android.testtochka.loginactivity.social_network_name"
-        // social network labels //TODO: шаредпреференсис
         const val GOOGLE_LABEL: String = "Google"
         const val FACEBOOK_LABEL: String = "Facebook"
         const val VKONTAKTE_LABEL: String = "VKontakte"

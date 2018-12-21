@@ -1,4 +1,4 @@
-package com.fillooow.android.testtochka.UI
+package com.fillooow.android.testtochka.ui
 
 import android.app.Activity
 import android.content.Context
@@ -13,23 +13,36 @@ import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.Toast
+import com.facebook.AccessToken
 import com.facebook.login.LoginManager
-import com.fillooow.android.testtochka.BusinessLogic.ApiError
+import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
+import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataBase
+import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataBase
+import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
 import com.fillooow.android.testtochka.R
-import com.fillooow.android.testtochka.UI.MainActivity.ConnectivityUtils.hasConnection
-import com.fillooow.android.testtochka.network.GithubApiService
-import com.fillooow.android.testtochka.network.model.UserSearchModel
+import com.fillooow.android.testtochka.ui.MainActivity.ConnectivityUtils.hasConnection
+import com.fillooow.android.testtochka.BusinessLogic.network.GithubApiService
+import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
 import com.jakewharton.rxbinding2.widget.RxTextView
+import com.squareup.picasso.Callback
+import com.squareup.picasso.NetworkPolicy
 import com.squareup.picasso.Picasso
+import com.vk.sdk.VKAccessToken
+import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
+import io.reactivex.Completable
+import io.reactivex.CompletableObserver
+import io.reactivex.Single
+import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
+import java.lang.Exception
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
@@ -69,11 +82,18 @@ class MainActivity : AppCompatActivity() {
         GithubApiService.create()
     }
 
+    private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
+    private var completableSetLabelDB: Completable? = null
+    //private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
     private var compositeDisposable = CompositeDisposable()
+    private var db: GithubUserSearchDataBase? = null
+    private var socialDB: SocialNetworkDataBase? = null
+    //private lateinit var mDbWorkerThread: DbWorkerThread
+    //private val mUiHandler = Handler()
 
-    private var userName: String? = null
+    private var userName: String = ""
     private var userPhotoUrl: String? = null
-    private var lastSearchText: String = ""
+    private var lastSearchText: String? = null
     private var socialNetworkLabel: String? = null //TODO: если null - кидаем на логин активити
     private var totalPages = 0
     private var totalCount = 0 // Найдено элементов
@@ -94,14 +114,21 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        db = GithubUserSearchDataBase.getInstance(this)
+        socialDB = SocialNetworkDataBase.getInstance(this)
+        singleGetLabelDB = socialDB?.socialNetworkDataDao()?.getAll()
+
+        loadSocialNetworkLabel()
+
         currentPageBeforeChanging = currentPage
 
         setSupportActionBar(toolbar)
-
         initialiseDrawer()
         rvUsers = findViewById(R.id.rvTest)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
         //loadUserItems("biba")
+        //socialNetworkLabel = "boba"
+
         userAdapter = UserSearchAdapter(itemsList, applicationContext)
         rvUsers.adapter = userAdapter
 
@@ -124,7 +151,11 @@ class MainActivity : AppCompatActivity() {
                         hasBtnClicked = false
                         var searchText = inputET.text.toString()
                         searchText = removeSpaces(searchText)
-                        if (searchText != lastSearchText) {
+                        if ((lastSearchText == "") && (searchText == "")){
+                            runOnUiThread{
+                                supportActionBar?.title = getString(R.string.empty_request)
+                            }
+                        } else if (searchText != lastSearchText){
                             loadUserItems(searchText, currentPage)
                         }
                     } else {
@@ -133,30 +164,25 @@ class MainActivity : AppCompatActivity() {
                 }
         )
 
-
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != Activity.RESULT_OK){
+            // Если была нажата кнопка Назад в LoginActivity или результатом пришла неудача
+            finish()
             return
         }
         if(requestCode == RC_LOGIN){
             socialNetworkLabel = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_SOCIAL_NETWORK_LABEL)
-            userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME)
+            userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME).toString()
             userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
-            drawer_user_name.text = userName
-            // google+ may return "null" as an answer, if user don't have profile picture
-            if (userPhotoUrl == "null"){
-                userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
-            }
-            setUserPhoto(userPhotoUrl)
-            //Log.d(GITHUB_TAG, data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME))
-            //Log.d(GITHUB_TAG, data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL))
+            setUserProfile()
+            restoreNetworkDB()
         }
     }
 
-    fun initialiseDrawer(){
+    private fun initialiseDrawer(){
         val drawableToggle:ActionBarDrawerToggle = object : ActionBarDrawerToggle(
             this,
             drawer_layout,
@@ -231,6 +257,7 @@ class MainActivity : AppCompatActivity() {
                     for (item in it.items) {
                         itemsList.add(item)
                     }
+                    //insertAtDb(it.items)
                     updateUI()
                 }, {
                     val errMessage = ApiError(it).errorMessage
@@ -298,21 +325,53 @@ class MainActivity : AppCompatActivity() {
         previousPageButton.isEnabled = isPrevBtnEnabled
     }
 
+    private fun setUserProfile(){
+        drawer_user_name.text = userName
+        // google+ may return "null" as an answer, if user don't have profile picture
+        if (userPhotoUrl == "null"){
+            userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
+        }
+        setUserPhoto(userPhotoUrl)
+    }
+
     private fun setUserPhoto(url: String?){
         // Google+ may return "null" as an answer, if user don't have profile picture
         Picasso.get()
             .load(url)
             .error(R.drawable.default_user_profile_image_png_5)
-            .into(drawer_user_photo)
+            .networkPolicy(NetworkPolicy.OFFLINE)
+            .into(drawer_user_photo, object : Callback{
+                override fun onSuccess() {
+
+                }
+
+                override fun onError(e: Exception?) {
+                    Picasso.get()
+                        .load(url)
+                        .error(R.drawable.default_user_profile_image_png_5)
+                        .into(drawer_user_photo, object : Callback {
+                            override fun onSuccess() {
+
+                            }
+
+                            override fun onError(e: Exception?) {
+                                Log.e("Picasso error", "Error $e")
+                            }
+
+                        })
+                }
+
+            })
 
     }
 
     private fun initializeLogoutBtn(label: String?){
         if (hasConnection(applicationContext)) {
+            socialNetworkLabel = null
             when (label) {
                 LoginActivity.GOOGLE_LABEL -> {
                     Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
-                        //startLoginIntent()
+
                     }
                 }
                 LoginActivity.FACEBOOK_LABEL -> {
@@ -328,6 +387,8 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
                 }
             }
+            socialNetworkLabel = null
+            restoreNetworkDB()
             startLoginIntent()
         } else {
             showToast(getString(R.string.no_internet_connection))
@@ -346,7 +407,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // TODO: onCreate
     override fun onSaveInstanceState(outState: Bundle?) {
         super.onSaveInstanceState(outState)
         outState?.putString(STATE_LAST_SEARCH_TEXT, lastSearchText)
@@ -369,20 +429,175 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // TODO db
+    /*fun insertAtDb(itemsList: ArrayList<UserSearchModel.Items>){
+        val task = Runnable {
+            var searchData = GithubUserSearchData()
+            for (item in itemsList){
+                searchData.githubID = item.id
+                searchData.login = item.login
+                searchData.avatarUrl = item.avatar_url
+                searchData.type = item.type
+                db?.githubUserSearchDataDao()?.insert(searchData)
+            }
+
+        }
+        mDbWorkerThread.postTask(task)
+
+    }*/
+
+    /*fun loadFromDb() {
+        val task = Runnable {
+            val userData = db?.githubUserSearchDataDao()?.getAll()
+            mUiHandler.post {
+                if (userData?.size != 0){
+                    itemsList.clear()
+                    var userItem: UserSearchModel.Items
+                    if (userData != null) {
+                        for (item in userData){
+                            userItem = UserSearchModel.Items(
+                                item.login,
+                                item.githubID,
+                                item.type,
+                                item.avatarUrl)
+                            itemsList.add(userItem)
+                        }
+                    }
+                }
+            }
+        }
+        mDbWorkerThread.postTask(task)
+    }*/
+
+    private fun loadSocialNetworkLabel() {
+        singleGetLabelDB?.subscribeOn(Schedulers.io())
+            ?.observeOn(AndroidSchedulers.mainThread())
+            ?.subscribe(object : SingleObserver<List<SocialNetworkData>>{
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onSuccess(t: List<SocialNetworkData>) {
+                    if (t.isNotEmpty()) {
+                        socialNetworkLabel = t[0].label
+                        userName = t[0].username
+                        userPhotoUrl = t[0].photoURL
+                    }
+                    setUserProfile()
+                    if (hasConnection(applicationContext)) {
+                        checkSocialNetworkTokenState(socialNetworkLabel)
+                    }
+
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+    }
+
+    fun saveSocialNetworkLabel(){
+        val socialNetworkData = SocialNetworkData()
+        socialNetworkData.label = socialNetworkLabel
+        socialNetworkData.photoURL = userPhotoUrl
+        socialNetworkData.username = userName
+
+        Completable.fromAction {
+            socialDB?.socialNetworkDataDao()?.insert(socialNetworkData)
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+    }
+
+    private fun restoreNetworkDB() {
+        Completable.fromAction {
+            socialDB?.socialNetworkDataDao()
+                ?.deleteAll()
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                    saveSocialNetworkLabel()
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load label error $e")
+                }
+
+            })
+    }
+
+    fun checkSocialNetworkTokenState(label: String?) {
+        when (label){
+            LoginActivity.GOOGLE_LABEL -> {
+                // TODO: проверка токена для гугла
+                gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestEmail()
+                    .build()
+                mGoogleApiClient = GoogleApiClient.Builder(this)
+                    .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
+                    .build()
+                mGoogleApiClient.connect()
+                val opr = Auth.GoogleSignInApi.silentSignIn(mGoogleApiClient)
+                if (!opr.isDone){
+                    expiredSession()
+                }
+            }
+            LoginActivity.FACEBOOK_LABEL -> {
+                val token = AccessToken.getCurrentAccessToken()
+                if (token == null || token.isExpired){
+                    expiredSession()
+                }
+            }
+            LoginActivity.VKONTAKTE_LABEL -> {
+                val vkAccessTokenTracker = object : VKAccessTokenTracker(){
+                    override fun onVKAccessTokenChanged(oldToken: VKAccessToken?, newToken: VKAccessToken?) {
+                        if (newToken == null){
+                            expiredSession()
+                        }
+                    }
+                }
+                vkAccessTokenTracker.startTracking()
+            }
+            null -> {
+                startLoginIntent()
+            }
+        }
+    }
+
+    fun expiredSession(){
+        showToast(getString(R.string.session_token_expired))
+        startLoginIntent()
+    }
 
     override fun onStart() {
         super.onStart()
-        gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .build()
-        mGoogleApiClient = GoogleApiClient.Builder(this)
-            .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
-            .build()
-        mGoogleApiClient.connect()
+
+    }
+
+    override fun onStop() {
+        super.onStop()
     }
 
     override fun onDestroy() {
         compositeDisposable.clear()
+        GithubUserSearchDataBase.destroyInstance()
+        SocialNetworkDataBase.destroyInstance()
         super.onDestroy()
     }
 }

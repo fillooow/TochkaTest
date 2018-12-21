@@ -34,7 +34,7 @@
             </intent-filter>
         </activity>
         <activity
-                android:name=".UI.MainActivity"
+                android:name=".ui.MainActivity"
                 android:windowSoftInputMode="adjustPan|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -42,15 +42,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity android:name=".Tests.TestGoogleActivity">
-        </activity>
-        <activity android:name=".Tests.TestFacebookActivity">
-        </activity>
-        <activity android:name=".Tests.TestVkActivity">
-        </activity>
-        <activity android:name=".Tests.TestActivity">
-        </activity>
-        <activity android:name=".UI.LoginActivity">
+        <activity android:name=".ui.LoginActivity">
         </activity>
     </application>
 
