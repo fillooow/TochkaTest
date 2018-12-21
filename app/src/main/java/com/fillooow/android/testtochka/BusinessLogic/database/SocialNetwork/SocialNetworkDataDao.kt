@@ -9,8 +9,8 @@ import io.reactivex.Single
 @Dao
 interface SocialNetworkDataDao{
 
-    @Query("SELECT * from socialNetworkData")
-    fun getAll(): Single<List<SocialNetworkData>>
+    @Query("SELECT * from socialNetworkData WHERE id = (SELECT MAX(id) FROM socialNetworkData)")
+    fun getRecord(): Single<SocialNetworkData>
 
     @Insert(onConflict = REPLACE)
     fun insert(socialNetworkData: SocialNetworkData)

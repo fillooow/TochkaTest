@@ -5,10 +5,11 @@ import android.arch.persistence.room.Room
 import android.arch.persistence.room.RoomDatabase
 import android.content.Context
 
-@Database(entities = [GithubUserSearchData::class], version = 1)
+@Database(entities = [GithubUserSearchData::class, UiInfoUserSearchData::class], version = 1)
 abstract class GithubUserSearchDataBase : RoomDatabase(){
 
     abstract fun githubUserSearchDataDao(): GithubUserSearchDataDao
+    abstract fun uiUserSearchDataDao(): UiInfoUserSearchDataDao
 
     companion object {
         private var INSTANCE: GithubUserSearchDataBase? = null

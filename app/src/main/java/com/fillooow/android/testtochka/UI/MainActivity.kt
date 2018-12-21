@@ -17,7 +17,9 @@ import com.facebook.AccessToken
 import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataBase
+import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataBase
+import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
 import com.fillooow.android.testtochka.R
 import com.fillooow.android.testtochka.ui.MainActivity.ConnectivityUtils.hasConnection
@@ -33,10 +35,7 @@ import com.squareup.picasso.Picasso
 import com.vk.sdk.VKAccessToken
 import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
-import io.reactivex.Completable
-import io.reactivex.CompletableObserver
-import io.reactivex.Single
-import io.reactivex.SingleObserver
+import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
@@ -64,13 +63,14 @@ class MainActivity : AppCompatActivity() {
         private const val STATE_TOTAL_PAGES = "totalPages"
         private const val STATE_CURRENT_PAGE = "currentPage"
         private const val STATE_TOTAL_COUNT = "totalCount"
+        private const val STATE_HAS_BTN_CLICKED = "hasBtnClicked"
     }
 
     object ConnectivityUtils{
         fun hasConnection(context: Context): Boolean{
             val cm: ConnectivityManager = context.applicationContext
                 .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            var connectInfo = cm.activeNetworkInfo
+            val connectInfo = cm.activeNetworkInfo
             if (connectInfo != null && connectInfo.isConnected){
                 return true
             }
@@ -82,26 +82,24 @@ class MainActivity : AppCompatActivity() {
         GithubApiService.create()
     }
 
-    private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
-    private var completableSetLabelDB: Completable? = null
-    //private var singleGetLabelDB: Single<List<SocialNetworkData>>? = null
+    private var singleGetLabelDB: Single<SocialNetworkData>? = null
+    private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
+    private var singleGetResponseDB: Single<List<GithubUserSearchData>>? = null
     private var compositeDisposable = CompositeDisposable()
-    private var db: GithubUserSearchDataBase? = null
+    private var githubDB: GithubUserSearchDataBase? = null
     private var socialDB: SocialNetworkDataBase? = null
-    //private lateinit var mDbWorkerThread: DbWorkerThread
-    //private val mUiHandler = Handler()
 
     private var userName: String = ""
     private var userPhotoUrl: String? = null
     private var lastSearchText: String? = null
-    private var socialNetworkLabel: String? = null //TODO: если null - кидаем на логин активити
+    private var socialNetworkLabel: String? = null // если null - пользователь не вошел, кидаем на логин активити
     private var totalPages = 0
     private var totalCount = 0 // Найдено элементов
     private var currentPage = 0
     private var currentPageBeforeChanging = 0 // Required to prevent wrong changing the counter of the current page
     private var isNextBtnEnabled = false
     private var isPrevBtnEnabled = false
-    private var hasBtnClicked = false
+    private var hasBtnClicked = false // Отслеживает, был ли сделан запрос с кнопок навигации (Далее, назад)
     private var itemsList = ArrayList<UserSearchModel.Items>()
     private lateinit var gso: GoogleSignInOptions
     private lateinit var mGoogleApiClient: GoogleApiClient
@@ -114,9 +112,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        db = GithubUserSearchDataBase.getInstance(this)
+        githubDB = GithubUserSearchDataBase.getInstance(this)
         socialDB = SocialNetworkDataBase.getInstance(this)
-        singleGetLabelDB = socialDB?.socialNetworkDataDao()?.getAll()
+
+        singleGetLabelDB = socialDB?.socialNetworkDataDao()?.getRecord()
+        singleGetUiInfoInfoDB = githubDB?.uiUserSearchDataDao()?.getRecord()
+        singleGetResponseDB = githubDB?.githubUserSearchDataDao()?.getAll()
 
         loadSocialNetworkLabel()
 
@@ -126,8 +127,6 @@ class MainActivity : AppCompatActivity() {
         initialiseDrawer()
         rvUsers = findViewById(R.id.rvTest)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
-        //loadUserItems("biba")
-        //socialNetworkLabel = "boba"
 
         userAdapter = UserSearchAdapter(itemsList, applicationContext)
         rvUsers.adapter = userAdapter
@@ -140,8 +139,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         restoreInstanceState(savedInstanceState)
-
-        updateUI()
 
         compositeDisposable.add(
             RxTextView.afterTextChangeEvents(inputET)
@@ -206,8 +203,14 @@ class MainActivity : AppCompatActivity() {
         navigation_view.setNavigationItemSelectedListener {
             drawer_layout.closeDrawers()
             when (it.itemId){
-                R.id.action_login -> {
-                    startLoginIntent()
+                R.id.action_bip -> {
+                    showToast("bip")
+                }
+                R.id.action_bup -> {
+                    showToast("bup")
+                }
+                R.id.action_bop -> {
+                    showToast("bop")
                 }
                 R.id.action_logout -> {
                     initializeLogoutBtn(socialNetworkLabel)
@@ -257,7 +260,6 @@ class MainActivity : AppCompatActivity() {
                     for (item in it.items) {
                         itemsList.add(item)
                     }
-                    //insertAtDb(it.items)
                     updateUI()
                 }, {
                     val errMessage = ApiError(it).errorMessage
@@ -283,10 +285,12 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.total_found, totalCount)
         pageCounterTV.text  = getString(R.string.page_counter, currentPage, totalPages)
         userAdapter.notifyDataSetChanged()
+        restoreUiInfo()
+        restoreResponseList()
     }
 
     private fun setUpCurrentPage() {
-        if (!hasBtnClicked){
+        if (hasBtnClicked == false){
             currentPage = 1
         }
         if (totalPages == 0){
@@ -297,7 +301,6 @@ class MainActivity : AppCompatActivity() {
                 currentPage = 1
             }
         }
-
         setUpSearchButtons()
     }
 
@@ -415,9 +418,10 @@ class MainActivity : AppCompatActivity() {
         outState?.putInt(STATE_TOTAL_PAGES, totalPages)
         outState?.putInt(STATE_CURRENT_PAGE, currentPage)
         outState?.putInt(STATE_TOTAL_COUNT, totalCount)
+        outState?.putBoolean(STATE_HAS_BTN_CLICKED, hasBtnClicked)
     }
 
-    fun restoreInstanceState(savedInstanceState: Bundle?) {
+    private fun restoreInstanceState(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {
             lastSearchText = savedInstanceState.getString(STATE_LAST_SEARCH_TEXT)
             isNextBtnEnabled = savedInstanceState.getBoolean(STATE_IS_NEXT_BTN_ENABLED)
@@ -425,69 +429,179 @@ class MainActivity : AppCompatActivity() {
             totalPages = savedInstanceState.getInt(STATE_TOTAL_PAGES)
             currentPage = savedInstanceState.getInt(STATE_CURRENT_PAGE)
             totalCount = savedInstanceState.getInt(STATE_TOTAL_COUNT)
-            Log.d(GITHUB_TAG, "onRestoreState")
+            hasBtnClicked = savedInstanceState.getBoolean(STATE_HAS_BTN_CLICKED)
         }
     }
 
-    // TODO db
-    /*fun insertAtDb(itemsList: ArrayList<UserSearchModel.Items>){
-        val task = Runnable {
-            var searchData = GithubUserSearchData()
-            for (item in itemsList){
-                searchData.githubID = item.id
-                searchData.login = item.login
-                searchData.avatarUrl = item.avatar_url
-                searchData.type = item.type
-                db?.githubUserSearchDataDao()?.insert(searchData)
-            }
-
-        }
-        mDbWorkerThread.postTask(task)
-
-    }*/
-
-    /*fun loadFromDb() {
-        val task = Runnable {
-            val userData = db?.githubUserSearchDataDao()?.getAll()
-            mUiHandler.post {
-                if (userData?.size != 0){
-                    itemsList.clear()
-                    var userItem: UserSearchModel.Items
-                    if (userData != null) {
-                        for (item in userData){
-                            userItem = UserSearchModel.Items(
-                                item.login,
-                                item.githubID,
-                                item.type,
-                                item.avatarUrl)
-                            itemsList.add(userItem)
-                        }
-                    }
-                }
-            }
-        }
-        mDbWorkerThread.postTask(task)
-    }*/
-
-    private fun loadSocialNetworkLabel() {
-        singleGetLabelDB?.subscribeOn(Schedulers.io())
+    private fun loadUiInfo(){
+        singleGetUiInfoInfoDB?.subscribeOn(Schedulers.io())
             ?.observeOn(AndroidSchedulers.mainThread())
-            ?.subscribe(object : SingleObserver<List<SocialNetworkData>>{
+            ?.subscribe(object : SingleObserver<UiInfoUserSearchData>{
+                override fun onSuccess(t: UiInfoUserSearchData) {
+                    lastSearchText = t.lastSearchTextDB
+                    isNextBtnEnabled = t.isNextBtnEnabledDB
+                    isPrevBtnEnabled = t.isPrevBtnEnabledDB
+                    totalPages = t.totalPagesDB
+                    currentPage = t.currentPageDB
+                    totalCount = t.totalCountDB
+                    hasBtnClicked = t.hasBtnClickedDB
+                    inputET.setText(lastSearchText)
+                    updateUI()
+                }
+
+
                 override fun onSubscribe(d: Disposable) {
                     compositeDisposable.add(d)
                 }
 
-                override fun onSuccess(t: List<SocialNetworkData>) {
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Load UI info error $e")
+                }
+
+            })
+    }
+
+    private fun saveUiInfo(){
+        val uiUserSearchData = UiInfoUserSearchData()
+        uiUserSearchData.lastSearchTextDB = lastSearchText
+        uiUserSearchData.isNextBtnEnabledDB = isNextBtnEnabled
+        uiUserSearchData.isPrevBtnEnabledDB = isPrevBtnEnabled
+        uiUserSearchData.totalPagesDB = totalPages
+        uiUserSearchData.currentPageDB = currentPage
+        uiUserSearchData.totalCountDB = totalCount
+        uiUserSearchData.hasBtnClickedDB = hasBtnClicked
+
+        Completable.fromAction {
+            githubDB?.uiUserSearchDataDao()?.insert(uiUserSearchData)
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+                    Log.d("Error", "Save ui info error $e")}
+
+            })
+    }
+
+    private fun restoreUiInfo(){
+        Completable.fromAction {
+            githubDB?.uiUserSearchDataDao()?.deleteAll()
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                    saveUiInfo()
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {}
+
+            })
+    }
+
+    private fun loadResponseList(){
+        singleGetResponseDB?.subscribeOn(Schedulers.io())
+            ?.observeOn(AndroidSchedulers.mainThread())
+            ?.subscribe(object : SingleObserver<List<GithubUserSearchData>> {
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+
+                }
+
+                override fun onSuccess(t: List<GithubUserSearchData>) {
+                    itemsList.clear()
                     if (t.isNotEmpty()) {
-                        socialNetworkLabel = t[0].label
-                        userName = t[0].username
-                        userPhotoUrl = t[0].photoURL
+                        for (item in t) {
+                            itemsList.add(
+                                UserSearchModel.Items(
+                                    item.login,
+                                    item.githubID,
+                                    item.type,
+                                    item.avatarUrl
+                                )
+                            )
+                        }
+                        userAdapter.notifyDataSetChanged()
+                    } else {
+                        loadUserItems(lastSearchText ?: inputET.text.toString(), currentPage)
                     }
+
+                }
+            })
+    }
+
+    fun saveResponseList(){
+        for (item in itemsList){
+            val githubUserSearchData = GithubUserSearchData()
+            githubUserSearchData.githubID = item.id
+            githubUserSearchData.avatarUrl = item.avatar_url
+            githubUserSearchData.login = item.login
+            githubUserSearchData.type = item.type
+
+            Completable.fromAction {
+                githubDB?.githubUserSearchDataDao()?.insert(githubUserSearchData)
+            }.subscribeOn(Schedulers.io())
+                .subscribe(object : CompletableObserver{
+                    override fun onComplete() {
+                    }
+
+                    override fun onSubscribe(d: Disposable) {
+                        compositeDisposable.add(d)
+                    }
+
+                    override fun onError(e: Throwable) {
+                    }
+
+                })
+        }
+    }
+
+    private fun restoreResponseList(){
+        Completable.fromAction {
+            githubDB?.githubUserSearchDataDao()?.deleteAll()
+        }.subscribeOn(Schedulers.io())
+            .subscribe(object : CompletableObserver{
+                override fun onComplete() {
+                    saveResponseList()
+                }
+
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onError(e: Throwable) {
+
+                }
+
+            })
+    }
+
+    private fun loadSocialNetworkLabel() {
+        singleGetLabelDB?.subscribeOn(Schedulers.io())
+            ?.observeOn(AndroidSchedulers.mainThread())
+            ?.subscribe(object : SingleObserver<SocialNetworkData>{
+                override fun onSubscribe(d: Disposable) {
+                    compositeDisposable.add(d)
+                }
+
+                override fun onSuccess(t: SocialNetworkData) {
+                    socialNetworkLabel = t.label
+                    userName = t.username
+                    userPhotoUrl = t.photoURL
                     setUserProfile()
                     if (hasConnection(applicationContext)) {
                         checkSocialNetworkTokenState(socialNetworkLabel)
                     }
-
                 }
 
                 override fun onError(e: Throwable) {
@@ -523,8 +637,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun restoreNetworkDB() {
         Completable.fromAction {
-            socialDB?.socialNetworkDataDao()
-                ?.deleteAll()
+            socialDB?.socialNetworkDataDao()?.deleteAll()
         }.subscribeOn(Schedulers.io())
             .subscribe(object : CompletableObserver{
                 override fun onComplete() {
@@ -545,7 +658,6 @@ class MainActivity : AppCompatActivity() {
     fun checkSocialNetworkTokenState(label: String?) {
         when (label){
             LoginActivity.GOOGLE_LABEL -> {
-                // TODO: проверка токена для гугла
                 gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                     .requestEmail()
                     .build()
@@ -580,14 +692,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun expiredSession(){
+    private fun expiredSession(){
         showToast(getString(R.string.session_token_expired))
         startLoginIntent()
     }
 
     override fun onStart() {
         super.onStart()
-
+        loadUiInfo()
+        loadResponseList()
     }
 
     override fun onStop() {
@@ -601,5 +714,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
-
-// TODO: Жизненный цикл

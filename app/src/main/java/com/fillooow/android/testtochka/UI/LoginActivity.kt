@@ -29,13 +29,13 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         const val FACEBOOK_LABEL: String = "Facebook"
         const val VKONTAKTE_LABEL: String = "VKontakte"
         // Request codes for onActivityResult()
-        val GOOGLE_RC_SIGN_IN: Int = 9001
+        const val GOOGLE_RC_SIGN_IN: Int = 9001
         val FB_RC_SIGN_IN: Int = FacebookSdk.getCallbackRequestCodeOffset()
         val VK_RC_SIGN_IN: Int = VKServiceActivity.VKServiceType.Authorization.outerCode
     }
 
-    var userName: String? = null
-    var userPhotoUrl: String? = null
+    private var userName: String? = null
+    private var userPhotoUrl: String? = null
     var socialNetworkLabel: String? = null
 
     // google
@@ -91,7 +91,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
     }
 
-    fun initializeLoginButtons(){
+    private fun initializeLoginButtons(){
         initializeGoogleButton()
         initializeFBButton()
         initializeVkButton()
@@ -111,7 +111,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         finish()
     }
 
-    fun showToast(toastText: String){
+    private fun showToast(toastText: String){
         runOnUiThread {
             Toast.makeText(this, toastText, Toast.LENGTH_LONG).show()
         }
@@ -144,22 +144,20 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
     private fun signInGoogle() {
         if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
-            var signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient)
+            val signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient)
             startActivityForResult(signInIntent, GOOGLE_RC_SIGN_IN)
         } else {
             showToast(getString(R.string.no_internet_connection))
         }
     }
 
-    fun handleSignInResult(signInResult: GoogleSignInResult){
+    private fun handleSignInResult(signInResult: GoogleSignInResult){
         if (signInResult.isSuccess){
             val account : GoogleSignInAccount? = signInResult.signInAccount
             val name = account?.displayName
             val url = account?.photoUrl.toString()
             socialNetworkLabel = GOOGLE_LABEL
             setNameAndUrl(name, url)
-            Log.d("GoogleTag", "Name: ${account?.displayName}")
-            Log.d("GoogleTag", "Photo URL: ${account?.photoUrl}")
         } else{
             Toast.makeText(this, "Error occurred" , Toast.LENGTH_LONG).show()
         }
@@ -178,7 +176,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
         signInFB()
     }
 
-    fun signInFB(){
+    private fun signInFB(){
         if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
             signInFacebookButton.registerCallback(callbackManager, object : FacebookCallback<LoginResult> {
                 override fun onSuccess(result: LoginResult) {
@@ -199,7 +197,6 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     fun getUserInfoFb(result: LoginResult){
-        // Log.d("FacebookTag", "Facebook token ${result.accessToken.token}")
         val request = GraphRequest.newMeRequest(result.accessToken){ `object`, response ->
             Log.d("FacebookTag", "ID: ${response.jsonObject.get("id")}")
             val name = response.jsonObject.get("name").toString()
@@ -243,13 +240,11 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
                 val jsonParser = JsonParser()
                 val parsedJson = jsonParser.parse(response?.json.toString()).asJsonObject
-                //Log.d("VkTag", "${response?.json}")
 
                 parsedJson.get("response").asJsonArray.forEach {
                     val name = "${it.asJsonObject.get("first_name").asString} ${it.asJsonObject.get("last_name").asString}"
                     val url = it.asJsonObject.get("photo_200").asString
                     setNameAndUrl(name, url)
-                    //Log.d("VkTAG", "Response: ${it.asJsonObject}")
                 }
                 socialNetworkLabel = VKONTAKTE_LABEL
                 intentSetResult()

@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+
     <item
-            android:id="@+id/action_login"
-            android:title="Login"
-            android:icon="@drawable/ic_launcher_background"/>
+            android:id="@+id/action_bip"
+            android:title="Bip"
+            android:icon="@drawable/ic_action_bip"/>
+    <item
+            android:id="@+id/action_bup"
+            android:title="Bup"
+            android:icon="@drawable/ic_action_bup"/>
+    <item
+            android:id="@+id/action_bop"
+            android:title="Bop"
+            android:icon="@drawable/ic_action_bop"/>
 
     <item
             android:id="@+id/action_logout"
             android:title="Logout"
-            android:icon="@drawable/ic_launcher_background"/>
+            android:icon="@drawable/ic_action_logout"/>
 </menu>
