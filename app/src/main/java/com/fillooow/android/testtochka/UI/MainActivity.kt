@@ -606,6 +606,9 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onError(e: Throwable) {
                     Log.d("Error", "Load label error $e")
+                    if (e.message?.contains("Query returned empty result")!!){
+                        startLoginIntent()
+                    }
                 }
 
             })

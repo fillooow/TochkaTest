@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#7109AA</color>
-    <color name="colorPrimaryDark">#5F2580</color>
+    <color name="colorPrimary">#7453ae</color>
+    <color name="colorPrimaryDark">#3a2176</color>
     <color name="colorAccent">#AD66D5</color>
     <color name="vk_color">#597da3</color>
+    <color name="col">#3a2176</color>
+    <color name="colr">#7453ae</color>
+    <color name="colo">#6323d9</color>
+    <color name="colqr">#AD66D5</color>
 </resources>
