@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import com.facebook.AccessToken
 import com.facebook.login.LoginManager
+import com.fillooow.android.testtochka.BaseApp
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataBase
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchData
@@ -35,6 +36,7 @@ import com.squareup.picasso.Picasso
 import com.vk.sdk.VKAccessToken
 import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
+import dagger.android.AndroidInjection
 import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -43,8 +45,9 @@ import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import java.lang.Exception
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
 
     companion object {
         private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
@@ -82,6 +85,8 @@ class MainActivity : AppCompatActivity() {
         GithubApiService.create()
     }
 
+    @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
+
     private var singleGetLabelDB: Single<SocialNetworkData>? = null
     private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
     private var singleGetResponseDB: Single<List<GithubUserSearchData>>? = null
@@ -89,7 +94,7 @@ class MainActivity : AppCompatActivity() {
     private var githubDB: GithubUserSearchDataBase? = null
     private var socialDB: SocialNetworkDataBase? = null
 
-    private var userName: String = ""
+    private var userName: String? = ""
     private var userPhotoUrl: String? = null
     private var lastSearchText: String? = null
     private var socialNetworkLabel: String? = null // если null - пользователь не вошел, кидаем на логин активити
@@ -112,6 +117,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        (application as BaseApp).appComponent.inject(this)
+
         githubDB = GithubUserSearchDataBase.getInstance(this)
         socialDB = SocialNetworkDataBase.getInstance(this)
 
@@ -119,7 +126,8 @@ class MainActivity : AppCompatActivity() {
         singleGetUiInfoInfoDB = githubDB?.uiUserSearchDataDao()?.getRecord()
         singleGetResponseDB = githubDB?.githubUserSearchDataDao()?.getAll()
 
-        loadSocialNetworkLabel()
+        socialNetworkPresenter.initSocialNetwork(this)
+        socialNetworkPresenter.loadSocialNetworkLabel()
 
         currentPageBeforeChanging = currentPage
 
@@ -175,7 +183,8 @@ class MainActivity : AppCompatActivity() {
             userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME).toString()
             userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
             setUserProfile()
-            restoreNetworkDB()
+            socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+            //restoreNetworkDB()
         }
     }
 
@@ -391,7 +400,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             socialNetworkLabel = null
-            restoreNetworkDB()
+            socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+            //restoreNetworkDB()
             startLoginIntent()
         } else {
             showToast(getString(R.string.no_internet_connection))
@@ -586,6 +596,22 @@ class MainActivity : AppCompatActivity() {
             })
     }
 
+    override fun setSocialNetworkResults(t: SocialNetworkData) {
+        // TODO: загнать в переменные метода, чтобы не плодить 3 строки лишних (лул)
+        socialNetworkLabel = t.label
+        userName = t.username
+        userPhotoUrl = t.photoURL
+        setUserProfile()
+        if (hasConnection(applicationContext)) {
+            checkSocialNetworkTokenState(socialNetworkLabel)
+        }
+    }
+
+    override fun errorEmptyResult() {
+        startLoginIntent()
+    }
+
+    /*
     private fun loadSocialNetworkLabel() {
         singleGetLabelDB?.subscribeOn(Schedulers.io())
             ?.observeOn(AndroidSchedulers.mainThread())
@@ -595,6 +621,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onSuccess(t: SocialNetworkData) {
+                    // setSocialNetworkResults()
                     socialNetworkLabel = t.label
                     userName = t.username
                     userPhotoUrl = t.photoURL
@@ -657,6 +684,7 @@ class MainActivity : AppCompatActivity() {
 
             })
     }
+    */
 
     fun checkSocialNetworkTokenState(label: String?) {
         when (label){
