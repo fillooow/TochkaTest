@@ -7,6 +7,7 @@ import com.fillooow.android.testtochka.di.component.ApplicationComponent
 import com.fillooow.android.testtochka.di.component.DaggerApplicationComponent
 import com.fillooow.android.testtochka.di.module.ApplicationModule
 import com.fillooow.android.testtochka.di.module.GithubUserSearchDbModule
+import com.fillooow.android.testtochka.di.module.PicassoModule
 import com.fillooow.android.testtochka.di.module.SocialNetworkDbModule
 import com.vk.sdk.VKSdk
 
@@ -30,5 +31,6 @@ class BaseApp : Application(){
                 .applicationModule(ApplicationModule(app))
                 .socialNetworkDbModule(SocialNetworkDbModule(app))
                 .githubUserSearchDbModule(GithubUserSearchDbModule(app))
+                .picassoModule(PicassoModule())
                 .build()
 }

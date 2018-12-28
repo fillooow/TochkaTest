@@ -10,7 +10,6 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
-import kotlinx.android.synthetic.main.activity_main.*
 import javax.inject.Inject
 
 class GithubUserSearchPresenter @Inject constructor(private val githubUserSearchDataDao: GithubUserSearchDataDao){
@@ -36,7 +35,6 @@ class GithubUserSearchPresenter @Inject constructor(private val githubUserSearch
                 }
 
                 override fun onSuccess(t: List<GithubUserSearchData>) {
-                    //githubUserSearchPresentation?.setSuccessfulLoadedItemsList(items)
                     items.clear()
                     if (t.isNotEmpty()) {
                         for (item in t) {
@@ -49,12 +47,6 @@ class GithubUserSearchPresenter @Inject constructor(private val githubUserSearch
                                 )
                             )
                         }
-                        // TODO: придумать что делать с методом, вообще, пусть возвращает ArrayList и будет проверка на
-                        // его пустоту. Если пуст, вызываем  нижнюю ветку else
-
-                        //userAdapter.notifyDataSetChanged()
-                    } else {
-                        //loadUserItems(lastSearchText ?: inputET.text.toString(), currentPage)
                     }
                     githubUserSearchPresentation?.setSuccessfulLoadedItemsList(items)
 
@@ -112,4 +104,5 @@ class GithubUserSearchPresenter @Inject constructor(private val githubUserSearch
         compositeDisposable.dispose()
         githubUserSearchPresentation = null
     }
+
 }

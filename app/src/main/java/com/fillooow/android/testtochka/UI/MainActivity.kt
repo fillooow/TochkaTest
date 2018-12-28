@@ -18,7 +18,6 @@ import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BaseApp
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataBase
-import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataBase
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
@@ -86,9 +85,9 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
 
     @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
     @Inject lateinit var githubUserSearchPresenter: GithubUserSearchPresenter
+    @Inject lateinit var picassoPresenter: PicassoPresenter
 
     private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
-    private var singleGetResponseDB: Single<List<GithubUserSearchData>>? = null
     private var compositeDisposable = CompositeDisposable()
     private var githubDB: GithubUserSearchDataBase? = null
 
@@ -116,16 +115,18 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         setContentView(R.layout.activity_main)
 
         (application as BaseApp).appComponent.inject(this)
+        //(application as BaseApp).appComponent.buildPicasso()
 
         githubDB = GithubUserSearchDataBase.getInstance(this)
 
         singleGetUiInfoInfoDB = githubDB?.uiUserSearchDataDao()?.getRecord()
-        singleGetResponseDB = githubDB?.githubUserSearchDataDao()?.getAll()
 
         socialNetworkPresenter.initSocialNetwork(this)
         socialNetworkPresenter.loadSocialNetworkLabel()
 
         githubUserSearchPresenter.initGithubUserSearch(this)
+
+
 
         currentPageBeforeChanging = currentPage
 
@@ -166,7 +167,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                     }
                 }
         )
-
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -186,13 +186,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
     }
 
     private fun initialiseDrawer(){
-        val drawableToggle:ActionBarDrawerToggle = object : ActionBarDrawerToggle(
-            this,
-            drawer_layout,
-            toolbar,
-            R.string.drawer_open,
-            R.string.drawer_close
-        ) {
+        val drawableToggle:ActionBarDrawerToggle = object : ActionBarDrawerToggle(this, drawer_layout,
+            toolbar, R.string.drawer_open, R.string.drawer_close) {
             override fun onDrawerOpened(drawerView: View) {
                 super.onDrawerOpened(drawerView)
             }
@@ -293,7 +288,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         userAdapter.notifyDataSetChanged()
         restoreUiInfo()
         githubUserSearchPresenter.restoreResponseList(itemsList)
-        //restoreResponseList()
     }
 
     private fun setUpCurrentPage() {
@@ -341,7 +335,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         if (userPhotoUrl == "null"){
             userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
         }
-        setUserPhoto(userPhotoUrl)
+        picassoPresenter.setUserPhoto(userPhotoUrl, drawer_user_photo)
+        //setUserPhoto(userPhotoUrl)
     }
 
     private fun setUserPhoto(url: String?){
@@ -372,7 +367,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                 }
 
             })
-
     }
 
     private fun initializeLogoutBtn(label: String?){
@@ -522,86 +516,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         }
     }
 
-    private fun loadResponseList(){
-        singleGetResponseDB?.subscribeOn(Schedulers.io())
-            ?.observeOn(AndroidSchedulers.mainThread())
-            ?.subscribe(object : SingleObserver<List<GithubUserSearchData>> {
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-
-                }
-
-                override fun onSuccess(t: List<GithubUserSearchData>) {
-                    itemsList.clear()
-                    if (t.isNotEmpty()) {
-                        for (item in t) {
-                            itemsList.add(
-                                UserSearchModel.Items(
-                                    item.login,
-                                    item.githubID,
-                                    item.type,
-                                    item.avatarUrl
-                                )
-                            )
-                        }
-                        userAdapter.notifyDataSetChanged()
-                    } else {
-                        loadUserItems(lastSearchText ?: inputET.text.toString(), currentPage)
-                    }
-
-                }
-            })
-    }
-
-    fun saveResponseList(){
-        for (item in itemsList){
-            val githubUserSearchData = GithubUserSearchData()
-            githubUserSearchData.githubID = item.id
-            githubUserSearchData.avatarUrl = item.avatar_url
-            githubUserSearchData.login = item.login
-            githubUserSearchData.type = item.type
-
-            Completable.fromAction {
-                githubDB?.githubUserSearchDataDao()?.insert(githubUserSearchData)
-            }.subscribeOn(Schedulers.io())
-                .subscribe(object : CompletableObserver{
-                    override fun onComplete() {
-                    }
-
-                    override fun onSubscribe(d: Disposable) {
-                        compositeDisposable.add(d)
-                    }
-
-                    override fun onError(e: Throwable) {
-                    }
-
-                })
-        }
-    }
-
-    private fun restoreResponseList(){
-        Completable.fromAction {
-            githubDB?.githubUserSearchDataDao()?.deleteAll()
-        }.subscribeOn(Schedulers.io())
-            .subscribe(object : CompletableObserver{
-                override fun onComplete() {
-                    saveResponseList()
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-
-                }
-
-            })
-    }
-
     override fun setSocialNetworkResults(t: SocialNetworkData) {
         // TODO: загнать в переменные метода, чтобы не плодить 3 строки лишних (лул)
         socialNetworkLabel = t.label
@@ -663,7 +577,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         super.onStart()
         loadUiInfo()
         githubUserSearchPresenter.loadResponseList(itemsList)
-        //loadResponseList()
     }
 
     override fun onStop() {
