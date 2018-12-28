@@ -16,7 +16,8 @@ class SocialNetworkDbModule(private val context: Context) {
     fun provideSocialNetworkDatabase(context: Context): SocialNetworkDataBase =
             Room.databaseBuilder(context,
                 SocialNetworkDataBase::class.java,
-                "social_network.db").build()
+                "social_network.db")
+                .build()
 
     @Provides
     @Singleton

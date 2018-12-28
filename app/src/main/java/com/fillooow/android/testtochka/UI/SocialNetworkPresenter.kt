@@ -15,7 +15,6 @@ import javax.inject.Inject
 class SocialNetworkPresenter @Inject constructor(private val socialNetworkDataDao: SocialNetworkDataDao){
 
     val compositeDisposable = CompositeDisposable()
-
     var socialNetworkPresentation: SocialNetworkPresentation? = null
 
     fun initSocialNetwork(socNetPresentation: SocialNetworkPresentation){
@@ -32,7 +31,6 @@ class SocialNetworkPresenter @Inject constructor(private val socialNetworkDataDa
                 }
 
                 override fun onSuccess(t: SocialNetworkData) {
-                    Log.d("BIBABOBA", "bibaboba")
                     socialNetworkPresentation?.setSocialNetworkResults(t)
                 }
 

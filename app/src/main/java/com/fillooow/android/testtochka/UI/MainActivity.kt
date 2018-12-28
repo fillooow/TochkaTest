@@ -36,7 +36,6 @@ import com.squareup.picasso.Picasso
 import com.vk.sdk.VKAccessToken
 import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
-import dagger.android.AndroidInjection
 import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -47,7 +46,7 @@ import java.lang.Exception
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
+class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserSearchPresentation {
 
     companion object {
         private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
@@ -86,13 +85,12 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
     }
 
     @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
+    @Inject lateinit var githubUserSearchPresenter: GithubUserSearchPresenter
 
-    private var singleGetLabelDB: Single<SocialNetworkData>? = null
     private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
     private var singleGetResponseDB: Single<List<GithubUserSearchData>>? = null
     private var compositeDisposable = CompositeDisposable()
     private var githubDB: GithubUserSearchDataBase? = null
-    private var socialDB: SocialNetworkDataBase? = null
 
     private var userName: String? = ""
     private var userPhotoUrl: String? = null
@@ -120,14 +118,14 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
         (application as BaseApp).appComponent.inject(this)
 
         githubDB = GithubUserSearchDataBase.getInstance(this)
-        socialDB = SocialNetworkDataBase.getInstance(this)
 
-        singleGetLabelDB = socialDB?.socialNetworkDataDao()?.getRecord()
         singleGetUiInfoInfoDB = githubDB?.uiUserSearchDataDao()?.getRecord()
         singleGetResponseDB = githubDB?.githubUserSearchDataDao()?.getAll()
 
         socialNetworkPresenter.initSocialNetwork(this)
         socialNetworkPresenter.loadSocialNetworkLabel()
+
+        githubUserSearchPresenter.initGithubUserSearch(this)
 
         currentPageBeforeChanging = currentPage
 
@@ -184,7 +182,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
             userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
             setUserProfile()
             socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
-            //restoreNetworkDB()
         }
     }
 
@@ -295,7 +292,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
         pageCounterTV.text  = getString(R.string.page_counter, currentPage, totalPages)
         userAdapter.notifyDataSetChanged()
         restoreUiInfo()
-        restoreResponseList()
+        githubUserSearchPresenter.restoreResponseList(itemsList)
+        //restoreResponseList()
     }
 
     private fun setUpCurrentPage() {
@@ -401,7 +399,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
             }
             socialNetworkLabel = null
             socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
-            //restoreNetworkDB()
             startLoginIntent()
         } else {
             showToast(getString(R.string.no_internet_connection))
@@ -516,6 +513,15 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
             })
     }
 
+    override fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>) {
+        if (items.isEmpty()){
+            loadUserItems(lastSearchText ?: inputET.text.toString(), currentPage)
+        } else {
+            itemsList = items
+            userAdapter.notifyDataSetChanged()
+        }
+    }
+
     private fun loadResponseList(){
         singleGetResponseDB?.subscribeOn(Schedulers.io())
             ?.observeOn(AndroidSchedulers.mainThread())
@@ -611,81 +617,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
         startLoginIntent()
     }
 
-    /*
-    private fun loadSocialNetworkLabel() {
-        singleGetLabelDB?.subscribeOn(Schedulers.io())
-            ?.observeOn(AndroidSchedulers.mainThread())
-            ?.subscribe(object : SingleObserver<SocialNetworkData>{
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onSuccess(t: SocialNetworkData) {
-                    // setSocialNetworkResults()
-                    socialNetworkLabel = t.label
-                    userName = t.username
-                    userPhotoUrl = t.photoURL
-                    setUserProfile()
-                    if (hasConnection(applicationContext)) {
-                        checkSocialNetworkTokenState(socialNetworkLabel)
-                    }
-                }
-
-                override fun onError(e: Throwable) {
-                    Log.d("Error", "Load label error $e")
-                    if (e.message?.contains("Query returned empty result")!!){
-                        startLoginIntent()
-                    }
-                }
-
-            })
-    }
-
-    fun saveSocialNetworkLabel(){
-        val socialNetworkData = SocialNetworkData()
-        socialNetworkData.label = socialNetworkLabel
-        socialNetworkData.photoURL = userPhotoUrl
-        socialNetworkData.username = userName
-
-        Completable.fromAction {
-            socialDB?.socialNetworkDataDao()?.insert(socialNetworkData)
-        }.subscribeOn(Schedulers.io())
-            .subscribe(object : CompletableObserver{
-                override fun onComplete() {
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-                    Log.d("Error", "Load label error $e")
-                }
-
-            })
-    }
-
-    private fun restoreNetworkDB() {
-        Completable.fromAction {
-            socialDB?.socialNetworkDataDao()?.deleteAll()
-        }.subscribeOn(Schedulers.io())
-            .subscribe(object : CompletableObserver{
-                override fun onComplete() {
-                    saveSocialNetworkLabel()
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-                    Log.d("Error", "Load label error $e")
-                }
-
-            })
-    }
-    */
-
     fun checkSocialNetworkTokenState(label: String?) {
         when (label){
             LoginActivity.GOOGLE_LABEL -> {
@@ -731,7 +662,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
     override fun onStart() {
         super.onStart()
         loadUiInfo()
-        loadResponseList()
+        githubUserSearchPresenter.loadResponseList(itemsList)
+        //loadResponseList()
     }
 
     override fun onStop() {
@@ -742,6 +674,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation {
         compositeDisposable.clear()
         GithubUserSearchDataBase.destroyInstance()
         SocialNetworkDataBase.destroyInstance()
+        socialNetworkPresenter.onDestroySocialNetworkPresenter()
+        githubUserSearchPresenter.onDestroyGhUserSearchPresenter()
         super.onDestroy()
     }
 }
