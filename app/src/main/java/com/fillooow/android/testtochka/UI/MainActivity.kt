@@ -29,9 +29,6 @@ import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
 import com.jakewharton.rxbinding2.widget.RxTextView
-import com.squareup.picasso.Callback
-import com.squareup.picasso.NetworkPolicy
-import com.squareup.picasso.Picasso
 import com.vk.sdk.VKAccessToken
 import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
@@ -41,11 +38,10 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
-import java.lang.Exception
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserSearchPresentation {
+class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserSearchPresentation, UiInfoUserSearchPresentation {
 
     companion object {
         private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
@@ -85,6 +81,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
 
     @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
     @Inject lateinit var githubUserSearchPresenter: GithubUserSearchPresenter
+    @Inject lateinit var uiInfoUserSearchPresenter: UiInfoUserSearchPresenter
     @Inject lateinit var picassoPresenter: PicassoPresenter
 
     private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
@@ -125,8 +122,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         socialNetworkPresenter.loadSocialNetworkLabel()
 
         githubUserSearchPresenter.initGithubUserSearch(this)
-
-
+        uiInfoUserSearchPresenter.initUiInfoUserSearch(this)
 
         currentPageBeforeChanging = currentPage
 
@@ -286,7 +282,9 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         supportActionBar?.title = getString(R.string.total_found, totalCount)
         pageCounterTV.text  = getString(R.string.page_counter, currentPage, totalPages)
         userAdapter.notifyDataSetChanged()
-        restoreUiInfo()
+        uiInfoUserSearchPresenter.restoreUiInfo(lastSearchText, isNextBtnEnabled, isPrevBtnEnabled, totalPages,
+            currentPage, totalCount, hasBtnClicked)
+        //restoreUiInfo()
         githubUserSearchPresenter.restoreResponseList(itemsList)
     }
 
@@ -336,38 +334,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
             userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
         }
         picassoPresenter.setUserPhoto(userPhotoUrl, drawer_user_photo)
-        //setUserPhoto(userPhotoUrl)
     }
 
-    private fun setUserPhoto(url: String?){
-        // Google+ may return "null" as an answer, if user don't have profile picture
-        Picasso.get()
-            .load(url)
-            .error(R.drawable.default_user_profile_image_png_5)
-            .networkPolicy(NetworkPolicy.OFFLINE)
-            .into(drawer_user_photo, object : Callback{
-                override fun onSuccess() {
-
-                }
-
-                override fun onError(e: Exception?) {
-                    Picasso.get()
-                        .load(url)
-                        .error(R.drawable.default_user_profile_image_png_5)
-                        .into(drawer_user_photo, object : Callback {
-                            override fun onSuccess() {
-
-                            }
-
-                            override fun onError(e: Exception?) {
-                                Log.e("Picasso error", "Error $e")
-                            }
-
-                        })
-                }
-
-            })
-    }
 
     private fun initializeLogoutBtn(label: String?){
         if (hasConnection(applicationContext)) {
@@ -434,6 +402,19 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         }
     }
 
+    override fun setSuccessfulLoadedUiResults(lastSearchTextDB: String?, nextBtnEnabledDB: Boolean,
+        prevBtnEnabledDB: Boolean, totalPagesDB: Int, currentPageDB: Int, totalCountDB: Int, hasBtnClickedDB: Boolean) {
+        lastSearchText = lastSearchTextDB
+        isNextBtnEnabled = nextBtnEnabledDB
+        isPrevBtnEnabled = prevBtnEnabledDB
+        totalPages = totalPagesDB
+        currentPage = currentPageDB
+        totalCount = totalCountDB
+        hasBtnClicked = hasBtnClickedDB
+        inputET.setText(lastSearchText)
+        updateUI()
+    }
+
     private fun loadUiInfo(){
         singleGetUiInfoInfoDB?.subscribeOn(Schedulers.io())
             ?.observeOn(AndroidSchedulers.mainThread())
@@ -449,7 +430,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                     inputET.setText(lastSearchText)
                     updateUI()
                 }
-
 
                 override fun onSubscribe(d: Disposable) {
                     compositeDisposable.add(d)
@@ -575,7 +555,8 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
 
     override fun onStart() {
         super.onStart()
-        loadUiInfo()
+        uiInfoUserSearchPresenter.loadUiInfo()
+        //loadUiInfo()
         githubUserSearchPresenter.loadResponseList(itemsList)
     }
 

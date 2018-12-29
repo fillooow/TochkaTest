@@ -8,11 +8,11 @@ import dagger.Provides
 import javax.inject.Singleton
 
 @Module
-class GithubUserSearchDbModule(private val context: Context){
+class UserSearchDbModule(private val context: Context){
 
     @Singleton
     @Provides
-    fun provideGithubUserSearchDatabase(context: Context): GithubUserSearchDataBase =
+    fun provideUserSearchDatabase(context: Context): GithubUserSearchDataBase =
             Room.databaseBuilder(context,
                 GithubUserSearchDataBase::class.java,
                 "github.db")
@@ -21,5 +21,9 @@ class GithubUserSearchDbModule(private val context: Context){
     @Singleton
     @Provides
     fun providesGithubUserSearchDao(dataBase: GithubUserSearchDataBase) = dataBase.githubUserSearchDataDao()
+
+    @Singleton
+    @Provides
+    fun providesUiInfoUserSearchDao(dataBase: GithubUserSearchDataBase) = dataBase.uiUserSearchDataDao()
 
 }
