@@ -10,6 +10,7 @@ import kotlinx.android.synthetic.main.activity_main.*
 import java.lang.Exception
 import javax.inject.Inject
 
+// TODO: удалить
 class PicassoPresenter @Inject constructor(){
 
     fun setUserPhoto(url: String?, imageView: ImageView){

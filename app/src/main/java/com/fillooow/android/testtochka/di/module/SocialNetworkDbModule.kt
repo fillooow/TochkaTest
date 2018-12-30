@@ -8,7 +8,7 @@ import dagger.Provides
 import javax.inject.Singleton
 
 @Module
-class SocialNetworkDbModule(private val context: Context) {
+class SocialNetworkDbModule {
 
 
     @Singleton

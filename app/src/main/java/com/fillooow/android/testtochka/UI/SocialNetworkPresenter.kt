@@ -12,6 +12,7 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import javax.inject.Inject
 
+// TODO: удалить
 class SocialNetworkPresenter @Inject constructor(private val socialNetworkDataDao: SocialNetworkDataDao){
 
     val compositeDisposable = CompositeDisposable()

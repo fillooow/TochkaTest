@@ -1,5 +1,6 @@
 package com.fillooow.android.testtochka.ui
 
+// TODO: удалить
 interface UiInfoUserSearchPresentation{
 
     fun setSuccessfulLoadedUiResults(

@@ -12,6 +12,7 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import javax.inject.Inject
 
+// TODO: удалить
 class UiInfoUserSearchPresenter @Inject constructor(private val uiInfoUserSearchDataDao: UiInfoUserSearchDataDao){
 
     val compositeDisposable = CompositeDisposable()

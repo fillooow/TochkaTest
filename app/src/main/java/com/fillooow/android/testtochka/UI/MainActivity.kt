@@ -9,7 +9,6 @@ import android.support.v7.app.ActionBarDrawerToggle
 import android.support.v7.widget.LinearLayoutManager
 import android.support.v7.widget.RecyclerView
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -17,9 +16,6 @@ import com.facebook.AccessToken
 import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BaseApp
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
-import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataBase
-import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataBase
-import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
 import com.fillooow.android.testtochka.R
 import com.fillooow.android.testtochka.ui.MainActivity.ConnectivityUtils.hasConnection
@@ -32,16 +28,14 @@ import com.jakewharton.rxbinding2.widget.RxTextView
 import com.vk.sdk.VKAccessToken
 import com.vk.sdk.VKAccessTokenTracker
 import com.vk.sdk.VKSdk
-import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserSearchPresentation, UiInfoUserSearchPresentation {
+class MainActivity : AppCompatActivity(), MainActivityPresentation {
 
     companion object {
         private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
@@ -80,13 +74,9 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
     }
 
     @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
-    @Inject lateinit var githubUserSearchPresenter: GithubUserSearchPresenter
-    @Inject lateinit var uiInfoUserSearchPresenter: UiInfoUserSearchPresenter
-    @Inject lateinit var picassoPresenter: PicassoPresenter
+    @Inject lateinit var mainActivityPresenter: MainActivityPresenter
 
-    private var singleGetUiInfoInfoDB: Single<UiInfoUserSearchData>? = null
     private var compositeDisposable = CompositeDisposable()
-    private var githubDB: GithubUserSearchDataBase? = null
 
     private var userName: String? = ""
     private var userPhotoUrl: String? = null
@@ -112,17 +102,9 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         setContentView(R.layout.activity_main)
 
         (application as BaseApp).appComponent.inject(this)
-        //(application as BaseApp).appComponent.buildPicasso()
 
-        githubDB = GithubUserSearchDataBase.getInstance(this)
-
-        singleGetUiInfoInfoDB = githubDB?.uiUserSearchDataDao()?.getRecord()
-
-        socialNetworkPresenter.initSocialNetwork(this)
-        socialNetworkPresenter.loadSocialNetworkLabel()
-
-        githubUserSearchPresenter.initGithubUserSearch(this)
-        uiInfoUserSearchPresenter.initUiInfoUserSearch(this)
+        mainActivityPresenter.initInterfaces(this)
+        mainActivityPresenter.loadSocialNetworkLabel()
 
         currentPageBeforeChanging = currentPage
 
@@ -159,7 +141,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                             loadUserItems(searchText, currentPage)
                         }
                     } else {
-                        showToast(getString(R.string.no_internet_connection))
+                        mainActivityPresenter.showToast(getString(R.string.no_internet_connection))
                     }
                 }
         )
@@ -177,7 +159,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
             userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME).toString()
             userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
             setUserProfile()
-            socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+            mainActivityPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
         }
     }
 
@@ -201,13 +183,13 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
             drawer_layout.closeDrawers()
             when (it.itemId){
                 R.id.action_bip -> {
-                    showToast("bip")
+                    mainActivityPresenter.showToast("bip")
                 }
                 R.id.action_bup -> {
-                    showToast("bup")
+                    mainActivityPresenter.showToast("bup")
                 }
                 R.id.action_bop -> {
-                    showToast("bop")
+                    mainActivityPresenter.showToast("bop")
                 }
                 R.id.action_logout -> {
                     initializeLogoutBtn(socialNetworkLabel)
@@ -261,7 +243,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                 }, {
                     val errMessage = ApiError(it).errorMessage
                     if (errMessage.contains("API rate limit exceeded")){
-                        showToast(getString(R.string.API_rate_limit_exceeded))
+                        mainActivityPresenter.showToast(getString(R.string.API_rate_limit_exceeded))
                         currentPage = currentPageBeforeChanging
                     }
                 }))
@@ -282,10 +264,9 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         supportActionBar?.title = getString(R.string.total_found, totalCount)
         pageCounterTV.text  = getString(R.string.page_counter, currentPage, totalPages)
         userAdapter.notifyDataSetChanged()
-        uiInfoUserSearchPresenter.restoreUiInfo(lastSearchText, isNextBtnEnabled, isPrevBtnEnabled, totalPages,
+        mainActivityPresenter.restoreUiInfo(lastSearchText, isNextBtnEnabled, isPrevBtnEnabled, totalPages,
             currentPage, totalCount, hasBtnClicked)
-        //restoreUiInfo()
-        githubUserSearchPresenter.restoreResponseList(itemsList)
+        mainActivityPresenter.restoreResponseList(itemsList)
     }
 
     private fun setUpCurrentPage() {
@@ -315,7 +296,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
             }
             currentPage == MAX_PAGE -> {
                 isNextBtnEnabled = false
-                showToast(getString(R.string.reached_max_page))
+                mainActivityPresenter.showToast(getString(R.string.reached_max_page))
             }
             currentPage > 1 -> {
                 isNextBtnEnabled = totalPages > currentPage
@@ -333,7 +314,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         if (userPhotoUrl == "null"){
             userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
         }
-        picassoPresenter.setUserPhoto(userPhotoUrl, drawer_user_photo)
+        mainActivityPresenter.setUserPhoto(userPhotoUrl, drawer_user_photo)
     }
 
 
@@ -360,10 +341,10 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
                 }
             }
             socialNetworkLabel = null
-            socialNetworkPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+            mainActivityPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
             startLoginIntent()
         } else {
-            showToast(getString(R.string.no_internet_connection))
+            mainActivityPresenter.showToast(getString(R.string.no_internet_connection))
         }
     }
 
@@ -371,12 +352,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         val intent = Intent(this, LoginActivity::class.java)
         drawer_layout.closeDrawers()
         startActivityForResult(intent, RC_LOGIN)
-    }
-
-    private fun showToast(toastText: String){
-        runOnUiThread {
-            Toast.makeText(this, toastText, Toast.LENGTH_LONG).show()
-        }
     }
 
     override fun onSaveInstanceState(outState: Bundle?) {
@@ -413,78 +388,6 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
         hasBtnClicked = hasBtnClickedDB
         inputET.setText(lastSearchText)
         updateUI()
-    }
-
-    private fun loadUiInfo(){
-        singleGetUiInfoInfoDB?.subscribeOn(Schedulers.io())
-            ?.observeOn(AndroidSchedulers.mainThread())
-            ?.subscribe(object : SingleObserver<UiInfoUserSearchData>{
-                override fun onSuccess(t: UiInfoUserSearchData) {
-                    lastSearchText = t.lastSearchTextDB
-                    isNextBtnEnabled = t.isNextBtnEnabledDB
-                    isPrevBtnEnabled = t.isPrevBtnEnabledDB
-                    totalPages = t.totalPagesDB
-                    currentPage = t.currentPageDB
-                    totalCount = t.totalCountDB
-                    hasBtnClicked = t.hasBtnClickedDB
-                    inputET.setText(lastSearchText)
-                    updateUI()
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-                    Log.d("Error", "Load UI info error $e")
-                }
-
-            })
-    }
-
-    private fun saveUiInfo(){
-        val uiUserSearchData = UiInfoUserSearchData()
-        uiUserSearchData.lastSearchTextDB = lastSearchText
-        uiUserSearchData.isNextBtnEnabledDB = isNextBtnEnabled
-        uiUserSearchData.isPrevBtnEnabledDB = isPrevBtnEnabled
-        uiUserSearchData.totalPagesDB = totalPages
-        uiUserSearchData.currentPageDB = currentPage
-        uiUserSearchData.totalCountDB = totalCount
-        uiUserSearchData.hasBtnClickedDB = hasBtnClicked
-
-        Completable.fromAction {
-            githubDB?.uiUserSearchDataDao()?.insert(uiUserSearchData)
-        }.subscribeOn(Schedulers.io())
-            .subscribe(object : CompletableObserver{
-                override fun onComplete() {
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {
-                    Log.d("Error", "Save ui info error $e")}
-
-            })
-    }
-
-    private fun restoreUiInfo(){
-        Completable.fromAction {
-            githubDB?.uiUserSearchDataDao()?.deleteAll()
-        }.subscribeOn(Schedulers.io())
-            .subscribe(object : CompletableObserver{
-                override fun onComplete() {
-                    saveUiInfo()
-                }
-
-                override fun onSubscribe(d: Disposable) {
-                    compositeDisposable.add(d)
-                }
-
-                override fun onError(e: Throwable) {}
-
-            })
     }
 
     override fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>) {
@@ -549,15 +452,14 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
     }
 
     private fun expiredSession(){
-        showToast(getString(R.string.session_token_expired))
+        mainActivityPresenter.showToast(getString(R.string.session_token_expired))
         startLoginIntent()
     }
 
     override fun onStart() {
         super.onStart()
-        uiInfoUserSearchPresenter.loadUiInfo()
-        //loadUiInfo()
-        githubUserSearchPresenter.loadResponseList(itemsList)
+        mainActivityPresenter.loadUiInfo()
+        mainActivityPresenter.loadResponseList(itemsList)
     }
 
     override fun onStop() {
@@ -566,10 +468,7 @@ class MainActivity : AppCompatActivity(), SocialNetworkPresentation, GithubUserS
 
     override fun onDestroy() {
         compositeDisposable.clear()
-        GithubUserSearchDataBase.destroyInstance()
-        SocialNetworkDataBase.destroyInstance()
-        socialNetworkPresenter.onDestroySocialNetworkPresenter()
-        githubUserSearchPresenter.onDestroyGhUserSearchPresenter()
+        mainActivityPresenter.onDestroyPresenter()
         super.onDestroy()
     }
 }
