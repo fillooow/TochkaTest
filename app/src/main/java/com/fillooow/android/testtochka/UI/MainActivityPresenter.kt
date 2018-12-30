@@ -1,20 +1,30 @@
 package com.fillooow.android.testtochka.ui
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.util.Log
 import android.widget.ImageView
 import android.widget.Toast
+import com.facebook.AccessToken
+import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkDataDao
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataDao
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchDataDao
+import com.fillooow.android.testtochka.BusinessLogic.network.ConnectivityUtils
 import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
 import com.fillooow.android.testtochka.R
+import com.google.android.gms.auth.api.Auth
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.GoogleApiClient
 import com.squareup.picasso.Callback
 import com.squareup.picasso.NetworkPolicy
 import com.squareup.picasso.Picasso
+import com.vk.sdk.VKAccessToken
+import com.vk.sdk.VKAccessTokenTracker
+import com.vk.sdk.VKSdk
 import io.reactivex.Completable
 import io.reactivex.CompletableObserver
 import io.reactivex.SingleObserver
@@ -27,11 +37,13 @@ import javax.inject.Inject
 
 class MainActivityPresenter @Inject constructor(private val githubUserSearchDataDao: GithubUserSearchDataDao,
                                                 private val uiInfoUserSearchDataDao: UiInfoUserSearchDataDao,
-                                                private val socialNetworkDataDao: SocialNetworkDataDao){
+                                                private val socialNetworkDataDao: SocialNetworkDataDao,
+                                                private val googleApiClient: GoogleApiClient){
 
     val compositeDisposable = CompositeDisposable()
     var context: Context? = null
     var mainActivityPresentation: MainActivityPresentation? = null
+    val connectivityUtils = ConnectivityUtils()
 
     fun initInterfaces(context: Context){
         this.context = context
@@ -293,9 +305,73 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
 
 
     fun showToast(toastText: String){
-        //runOnUiThread {
-            Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
-        //}
+        Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
+    }
+
+    fun checkSocialNetworkTokenState(label: String?) {
+        if (connectivityUtils.hasConnection(context)) {
+            when (label) {
+                LoginActivity.GOOGLE_LABEL -> {
+                    googleApiClient.connect()
+                    val opr = Auth.GoogleSignInApi.silentSignIn(googleApiClient)
+                    if (!opr.isDone) {
+                        expiredSession()
+                    }
+                }
+                LoginActivity.FACEBOOK_LABEL -> {
+                    val token = AccessToken.getCurrentAccessToken()
+                    if (token == null || token.isExpired) {
+                        expiredSession()
+                    }
+                }
+                LoginActivity.VKONTAKTE_LABEL -> {
+                    val vkAccessTokenTracker = object : VKAccessTokenTracker() {
+                        override fun onVKAccessTokenChanged(oldToken: VKAccessToken?, newToken: VKAccessToken?) {
+                            if (newToken == null) {
+                                expiredSession()
+                            }
+                        }
+                    }
+                    vkAccessTokenTracker.startTracking()
+                }
+                null -> {
+                    mainActivityPresentation?.startLoginIntent()
+                }
+            }
+        }
+    }
+
+    fun initializeLogoutBtn(label: String?, photoURL: String?, username: String?){
+        if (connectivityUtils.hasConnection(context?.applicationContext)) {
+            when (label) {
+                LoginActivity.GOOGLE_LABEL -> {
+                    Auth.GoogleSignInApi.signOut(googleApiClient).setResultCallback {
+
+                    }
+                }
+                LoginActivity.FACEBOOK_LABEL -> {
+                    LoginManager.getInstance().logOut()
+                }
+                LoginActivity.VKONTAKTE_LABEL -> {
+                    VKSdk.logout()
+                }
+                null -> {
+                    showToast(context?.getString(R.string.logout_null_error)!!)
+                }
+                else -> {
+                    showToast(context?.getString(R.string.logout_null_error)!!)
+                }
+            }
+            restoreNetworkDB(label, photoURL, username)
+            mainActivityPresentation?.startLoginIntent()
+        } else {
+            showToast(context?.getString(R.string.no_internet_connection)!!)
+        }
+    }
+
+    fun expiredSession(){
+        showToast(context?.getString(R.string.session_token_expired) ?: "Session token expired")
+        mainActivityPresentation?.startLoginIntent()
     }
 
     fun onDestroyPresenter(){

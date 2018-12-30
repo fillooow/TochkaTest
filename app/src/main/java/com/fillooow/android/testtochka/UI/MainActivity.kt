@@ -58,9 +58,9 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
     }
 
     object ConnectivityUtils{
-        fun hasConnection(context: Context): Boolean{
-            val cm: ConnectivityManager = context.applicationContext
-                .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        fun hasConnection(context: Context?): Boolean{
+            val cm: ConnectivityManager = context?.applicationContext
+                ?.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val connectInfo = cm.activeNetworkInfo
             if (connectInfo != null && connectInfo.isConnected){
                 return true
@@ -73,7 +73,6 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         GithubApiService.create()
     }
 
-    @Inject lateinit var socialNetworkPresenter: SocialNetworkPresenter
     @Inject lateinit var mainActivityPresenter: MainActivityPresenter
 
     private var compositeDisposable = CompositeDisposable()
@@ -110,7 +109,7 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
 
         setSupportActionBar(toolbar)
         initialiseDrawer()
-        rvUsers = findViewById(R.id.rvTest)
+        rvUsers = findViewById(R.id.rvMain)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
 
         userAdapter = UserSearchAdapter(itemsList, applicationContext)
@@ -192,7 +191,9 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
                     mainActivityPresenter.showToast("bop")
                 }
                 R.id.action_logout -> {
-                    initializeLogoutBtn(socialNetworkLabel)
+                    mainActivityPresenter.initializeLogoutBtn(socialNetworkLabel, userPhotoUrl, userName)
+                    socialNetworkLabel = null
+                    //initializeLogoutBtn(socialNetworkLabel)
                 }
             }
             true
@@ -318,9 +319,8 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
     }
 
 
-    private fun initializeLogoutBtn(label: String?){
+    /*private fun initializeLogoutBtn(label: String?){
         if (hasConnection(applicationContext)) {
-            socialNetworkLabel = null
             when (label) {
                 LoginActivity.GOOGLE_LABEL -> {
                     Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
@@ -346,9 +346,9 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         } else {
             mainActivityPresenter.showToast(getString(R.string.no_internet_connection))
         }
-    }
+    }*/
 
-    private fun startLoginIntent(){
+    override fun startLoginIntent(){
         val intent = Intent(this, LoginActivity::class.java)
         drawer_layout.closeDrawers()
         startActivityForResult(intent, RC_LOGIN)
@@ -405,16 +405,14 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         userName = t.username
         userPhotoUrl = t.photoURL
         setUserProfile()
-        if (hasConnection(applicationContext)) {
-            checkSocialNetworkTokenState(socialNetworkLabel)
-        }
+        mainActivityPresenter.checkSocialNetworkTokenState(socialNetworkLabel)
     }
 
     override fun errorEmptyResult() {
         startLoginIntent()
     }
 
-    fun checkSocialNetworkTokenState(label: String?) {
+    /*fun checkSocialNetworkTokenState(label: String?) {
         when (label){
             LoginActivity.GOOGLE_LABEL -> {
                 gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -449,12 +447,12 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
                 startLoginIntent()
             }
         }
-    }
+    }*/
 
-    private fun expiredSession(){
+    /*private fun expiredSession(){
         mainActivityPresenter.showToast(getString(R.string.session_token_expired))
         startLoginIntent()
-    }
+    }*/
 
     override fun onStart() {
         super.onStart()
