@@ -59,9 +59,8 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
     private var currentPageBeforeChanging = 0 // Required to prevent wrong changing the counter of the current page
     private var isNextBtnEnabled = false
     private var isPrevBtnEnabled = false
-    private var hasBtnClicked = false // Отслеживает, был ли сделан запрос с кнопок навигации (Далее, назад)
+    private var hasBtnClicked = false // Отслеживает, был ли сделан запрос с кнопок навигации (далее, назад)
     var itemsList = ArrayList<UserSearchModel.Items>()
-    private lateinit var userAdapter: UserSearchAdapter
 
     fun initInterfaces(context: Context){
         this.context = context
@@ -98,7 +97,6 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                     if (itemsList.isEmpty()){
                         checkBeforeLoadingUserItems(lastSearchText ?: editTextString, currentPage)
                     } else {
-                        //mainActivityPresentation?.updateItems(itemsList)
                         mainActivityPresentation?.updateUI(currentPage, totalPages, totalCount)
                     }
 
@@ -267,7 +265,6 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                     userPhotoUrl = t.photoURL
                     checkSocialNetworkTokenState(socialNetworkLabel)
                     mainActivityPresentation?.setUserProfile(userName)
-                    //mainActivityPresentation?.setSocialNetworkResults(t)
                 }
 
                 override fun onError(e: Throwable) {
@@ -402,7 +399,6 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                     .subscribe({
                         totalCount = it.total_count
                         totalPages = countPages(totalCount)
-                        //mainActivityPresentation?.updateItems(it.items)
                         for (item in it.items){
                             itemsList.add(item)
                         }
@@ -412,7 +408,6 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                         val errMessage = ApiError(it).errorMessage
                         if (errMessage.contains("API rate limit exceeded")){
                             showToast(context?.getString(R.string.API_rate_limit_exceeded)!!)
-                            //mainActivityPresentation?.onErrorLoadItems()
                             currentPage = currentPageBeforeChanging
                         }
                     }))
