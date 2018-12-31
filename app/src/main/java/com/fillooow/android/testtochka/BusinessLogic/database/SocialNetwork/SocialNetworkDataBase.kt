@@ -9,24 +9,4 @@ import android.content.Context
 abstract class SocialNetworkDataBase : RoomDatabase(){
 
     abstract fun socialNetworkDataDao(): SocialNetworkDataDao
-
-    companion object {
-        private var INSTANCE: SocialNetworkDataBase? = null
-
-        fun getInstance(context: Context): SocialNetworkDataBase?{
-            if (INSTANCE == null){
-                synchronized(SocialNetworkDataBase::class){
-                    INSTANCE = Room.databaseBuilder(context.applicationContext,
-                        SocialNetworkDataBase::class.java,
-                        "social_network.db")
-                        .build()
-                }
-            }
-            return INSTANCE
-        }
-
-        fun destroyInstance(){
-            INSTANCE = null
-        }
-    }
 }
