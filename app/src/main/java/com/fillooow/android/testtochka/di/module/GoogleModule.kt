@@ -8,7 +8,6 @@ import dagger.Module
 import dagger.Provides
 import javax.inject.Singleton
 
-// TODO: удалить
 @Module
 class GoogleModule(private val context: Context){
 

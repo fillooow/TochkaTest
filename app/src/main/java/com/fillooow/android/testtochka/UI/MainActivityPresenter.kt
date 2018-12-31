@@ -1,8 +1,8 @@
 package com.fillooow.android.testtochka.ui
 
 import android.content.Context
-import android.net.ConnectivityManager
 import android.util.Log
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
 import com.facebook.AccessToken
@@ -13,12 +13,14 @@ import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubU
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.GithubUserSearchDataDao
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchData
 import com.fillooow.android.testtochka.BusinessLogic.database.UserSearch.UiInfoUserSearchDataDao
+import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
 import com.fillooow.android.testtochka.BusinessLogic.network.ConnectivityUtils
+import com.fillooow.android.testtochka.BusinessLogic.network.GithubApiService
 import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
 import com.fillooow.android.testtochka.R
 import com.google.android.gms.auth.api.Auth
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.GoogleApiClient
+import com.jakewharton.rxbinding2.widget.RxTextView
 import com.squareup.picasso.Callback
 import com.squareup.picasso.NetworkPolicy
 import com.squareup.picasso.Picasso
@@ -33,24 +35,40 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import java.lang.Exception
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class MainActivityPresenter @Inject constructor(private val githubUserSearchDataDao: GithubUserSearchDataDao,
                                                 private val uiInfoUserSearchDataDao: UiInfoUserSearchDataDao,
                                                 private val socialNetworkDataDao: SocialNetworkDataDao,
-                                                private val googleApiClient: GoogleApiClient){
+                                                private val googleApiClient: GoogleApiClient,
+                                                private val githubApiService: GithubApiService){
 
     val compositeDisposable = CompositeDisposable()
     var context: Context? = null
     var mainActivityPresentation: MainActivityPresentation? = null
     val connectivityUtils = ConnectivityUtils()
 
+    private var userName: String? = ""
+    private var userPhotoUrl: String? = null
+    private var lastSearchText: String? = null
+    private var socialNetworkLabel: String? = null // если null - пользователь не вошел, кидаем на логин активити
+    private var totalPages = 0
+    private var totalCount = 0 // Найдено элементов
+    private var currentPage = 0
+    private var currentPageBeforeChanging = 0 // Required to prevent wrong changing the counter of the current page
+    private var isNextBtnEnabled = false
+    private var isPrevBtnEnabled = false
+    private var hasBtnClicked = false // Отслеживает, был ли сделан запрос с кнопок навигации (Далее, назад)
+    var itemsList = ArrayList<UserSearchModel.Items>()
+    private lateinit var userAdapter: UserSearchAdapter
+
     fun initInterfaces(context: Context){
         this.context = context
         mainActivityPresentation = context as MainActivityPresentation
     }
 
-    fun loadResponseList(items: ArrayList<UserSearchModel.Items>){
+    fun loadResponseList(editTextString: String){
         githubUserSearchDataDao.getAll()
             .subscribeOn(Schedulers.io())
             ?.observeOn(AndroidSchedulers.mainThread())
@@ -64,10 +82,10 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                 }
 
                 override fun onSuccess(t: List<GithubUserSearchData>) {
-                    items.clear()
+                    itemsList.clear()
                     if (t.isNotEmpty()) {
                         for (item in t) {
-                            items.add(
+                            itemsList.add(
                                 UserSearchModel.Items(
                                     item.login,
                                     item.githubID,
@@ -77,14 +95,45 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                             )
                         }
                     }
-                    mainActivityPresentation?.setSuccessfulLoadedItemsList(items)
+                    if (itemsList.isEmpty()){
+                        checkBeforeLoadingUserItems(lastSearchText ?: editTextString, currentPage)
+                    } else {
+                        //mainActivityPresentation?.updateItems(itemsList)
+                        mainActivityPresentation?.updateUI(currentPage, totalPages, totalCount)
+                    }
+
 
                 }
             })
     }
 
-    fun saveResponseList(items: ArrayList<UserSearchModel.Items>){
-        for (item in items){
+    fun checkBeforeLoadingUserItems(searchText: String, page: Int){
+        itemsList.clear()
+        if (searchText == ""){
+            totalPages = 0
+            currentPage = 0
+            mainActivityPresentation?.updateUI(currentPage, totalPages, totalCount)
+            mainActivityPresentation?.setSupportActionBarTitle(context?.getString(R.string.empty_request)!!)
+        } else {
+            loadUserItems(searchText, page)
+        }
+        lastSearchText = searchText
+    }
+
+    fun setOnActivityResultData(label: String?, username: String?, photoUrl: String?){
+        socialNetworkLabel = label
+        userName = username
+        userPhotoUrl = photoUrl
+        // google+ may return "null" as an answer, if user don't have profile picture
+        if (userPhotoUrl == "null"){
+            userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
+        }
+        mainActivityPresentation?.setUserProfile(userName)
+        restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+    }
+
+    fun saveResponseList(){
+        for (item in itemsList){
             val githubUserSearchData = GithubUserSearchData()
             githubUserSearchData.githubID = item.id
             githubUserSearchData.avatarUrl = item.avatar_url
@@ -109,13 +158,13 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
         }
     }
 
-    fun restoreResponseList(items: ArrayList<UserSearchModel.Items>){
+    fun restoreResponseList(){
         Completable.fromAction {
             githubUserSearchDataDao.deleteAll()
         }.subscribeOn(Schedulers.io())
             .subscribe(object : CompletableObserver{
                 override fun onComplete() {
-                    saveResponseList(items)
+                    saveResponseList()
                 }
 
                 override fun onSubscribe(d: Disposable) {
@@ -135,15 +184,15 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(object : SingleObserver<UiInfoUserSearchData> {
                 override fun onSuccess(t: UiInfoUserSearchData) {
-                    mainActivityPresentation?.setSuccessfulLoadedUiResults(t.lastSearchTextDB,
-                        t.isNextBtnEnabledDB,
-                        t.isPrevBtnEnabledDB,
-                        t.totalPagesDB,
-                        t.currentPageDB,
-                        t.totalCountDB,
-                        t.hasBtnClickedDB)
-                    //inputET.setText(lastSearchText)
-                    //updateUI()
+                    lastSearchText = t.lastSearchTextDB
+                    isNextBtnEnabled = t.isNextBtnEnabledDB
+                    isPrevBtnEnabled = t.isPrevBtnEnabledDB
+                    totalPages = t.totalPagesDB
+                    currentPage = t.currentPageDB
+                    totalCount = t.totalCountDB
+                    hasBtnClicked = t.hasBtnClickedDB
+                    mainActivityPresentation?.setSuccessfulLoadedUiResults(t.lastSearchTextDB)
+                    mainActivityPresentation?.updateUI(currentPage, totalPages, totalCount)
                 }
 
                 override fun onSubscribe(d: Disposable) {
@@ -157,8 +206,7 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
             })
     }
 
-    fun saveUiInfo(lastSearchText: String?, isNextBtnEnabled: Boolean, isPrevBtnEnabled: Boolean,
-                   totalPages: Int, currentPage: Int, totalCount: Int, hasBtnClicked: Boolean){
+    fun saveUiInfo(){
         val uiUserSearchData = UiInfoUserSearchData()
         uiUserSearchData.lastSearchTextDB = lastSearchText
         uiUserSearchData.isNextBtnEnabledDB = isNextBtnEnabled
@@ -185,15 +233,13 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
             })
     }
 
-    fun restoreUiInfo(lastSearchText: String?, isNextBtnEnabled: Boolean, isPrevBtnEnabled: Boolean,
-                      totalPages: Int, currentPage: Int, totalCount: Int, hasBtnClicked: Boolean){
+    fun restoreUiInfo(){
         Completable.fromAction {
             uiInfoUserSearchDataDao.deleteAll()
         }.subscribeOn(Schedulers.io())
             .subscribe(object : CompletableObserver{
                 override fun onComplete() {
-                    saveUiInfo(lastSearchText, isNextBtnEnabled, isPrevBtnEnabled,
-                        totalPages, currentPage, totalCount, hasBtnClicked)
+                    saveUiInfo()
                 }
 
                 override fun onSubscribe(d: Disposable) {
@@ -216,12 +262,17 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                 }
 
                 override fun onSuccess(t: SocialNetworkData) {
-                    mainActivityPresentation?.setSocialNetworkResults(t)
+                    socialNetworkLabel = t.label
+                    userName = t.username
+                    userPhotoUrl = t.photoURL
+                    checkSocialNetworkTokenState(socialNetworkLabel)
+                    mainActivityPresentation?.setUserProfile(userName)
+                    //mainActivityPresentation?.setSocialNetworkResults(t)
                 }
 
                 override fun onError(e: Throwable) {
                     if (e.message?.contains("Query returned empty result")!!){
-                        mainActivityPresentation?.errorEmptyResult()
+                        mainActivityPresentation?.startLoginIntent()
                     }
                 }
 
@@ -272,11 +323,50 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
             })
     }
 
+    fun setUpCurrentPage() {
+        if (hasBtnClicked == false){
+            currentPage = 1
+        }
+        if (totalPages == 0){
+            currentPage = 0
+        }
+        if (totalPages > 0){
+            if (currentPage <= 1){
+                currentPage = 1
+            }
+        }
+        setUpSearchButtons(currentPage, totalPages)
+    }
 
-    fun setUserPhoto(url: String?, imageView: ImageView){
-        // Google+ may return "null" as an answer, if user don't have profile picture
+    fun setRxEditTextListener(inputET: EditText){
+        currentPageBeforeChanging = currentPage
+        compositeDisposable.add(
+            RxTextView.afterTextChangeEvents(inputET)
+                .debounce(600, TimeUnit.MILLISECONDS)
+                .subscribe{
+                    if(connectivityUtils.hasConnection(context?.applicationContext)) {
+                        hasBtnClicked = false
+                        var searchText = inputET.text.toString()
+                        searchText = removeSpaces(searchText)
+                        if ((lastSearchText == "") && (searchText == "")){
+                            mainActivityPresentation?.setSupportActionBarTitle(context?.getString(R.string.empty_request)!!)
+                        } else if (searchText != lastSearchText){
+                            currentPage = 1
+                            checkBeforeLoadingUserItems(searchText, currentPage)
+                        }
+                    } else {
+                        showToast(context?.getString(R.string.no_internet_connection)!!)
+                    }
+                })
+    }
+
+    fun removeSpaces(text: String) : String{
+        return text.trim().replace("[\\s]{2,}", " ")
+    }
+
+    fun setUserPhoto(imageView: ImageView){
         Picasso.get()
-            .load(url)
+            .load(userPhotoUrl)
             .error(R.drawable.default_user_profile_image_png_5)
             .networkPolicy(NetworkPolicy.OFFLINE)
             .into(imageView, object : Callback {
@@ -286,7 +376,7 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
 
                 override fun onError(e: Exception?) {
                     Picasso.get()
-                        .load(url)
+                        .load(userPhotoUrl)
                         .error(R.drawable.default_user_profile_image_png_5)
                         .into(imageView, object : Callback {
                             override fun onSuccess() {
@@ -303,6 +393,77 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
             })
     }
 
+    fun loadUserItems(searchText: String, page: Int){
+            compositeDisposable.add(
+                githubApiService
+                    .searchUser(searchText, page)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe({
+                        totalCount = it.total_count
+                        totalPages = countPages(totalCount)
+                        //mainActivityPresentation?.updateItems(it.items)
+                        for (item in it.items){
+                            itemsList.add(item)
+                        }
+                        mainActivityPresentation?.updateUI(currentPage, totalPages, totalCount)
+
+                    }, {
+                        val errMessage = ApiError(it).errorMessage
+                        if (errMessage.contains("API rate limit exceeded")){
+                            showToast(context?.getString(R.string.API_rate_limit_exceeded)!!)
+                            //mainActivityPresentation?.onErrorLoadItems()
+                            currentPage = currentPageBeforeChanging
+                        }
+                    }))
+
+    }
+
+    fun countPages(totalCount: Int): Int {
+        if (totalCount <= 0) {
+            return 0
+        }
+        return (totalCount/ MainActivity.ELEMENTS_PER_PAGE) + 1
+    }
+
+    fun loadNextPage(editTextString: String){
+        hasBtnClicked = true
+        currentPageBeforeChanging = currentPage
+        currentPage++
+        checkBeforeLoadingUserItems(editTextString, currentPage)
+    }
+
+    fun loadPrevPage(editTextString: String){
+        hasBtnClicked = true
+        currentPageBeforeChanging = currentPage
+        currentPage--
+        checkBeforeLoadingUserItems(editTextString, currentPage)
+    }
+
+    fun setUpSearchButtons(currentPage: Int, totalPages: Int){
+        var isNextBtnEnabled: Boolean = false
+        var isPrevBtnEnabled: Boolean = false
+        when{
+            currentPage == 0 -> {
+                isNextBtnEnabled = false
+                isPrevBtnEnabled = false
+            }
+            currentPage == 1 -> {
+                isNextBtnEnabled = totalPages >= 2
+                isPrevBtnEnabled = false
+            }
+            currentPage == MainActivity.MAX_PAGE -> {
+                isNextBtnEnabled = false
+                showToast(context?.getString(R.string.reached_max_page)!!)
+            }
+            currentPage > 1 -> {
+                isNextBtnEnabled = totalPages > currentPage
+                isPrevBtnEnabled = currentPage > 1
+            }
+
+        }
+        mainActivityPresentation?.setButtonsState(isNextBtnEnabled, isPrevBtnEnabled)
+    }
 
     fun showToast(toastText: String){
         Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
@@ -341,9 +502,9 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
         }
     }
 
-    fun initializeLogoutBtn(label: String?, photoURL: String?, username: String?){
+    fun initializeLogoutBtn(){
         if (connectivityUtils.hasConnection(context?.applicationContext)) {
-            when (label) {
+            when (socialNetworkLabel) {
                 LoginActivity.GOOGLE_LABEL -> {
                     Auth.GoogleSignInApi.signOut(googleApiClient).setResultCallback {
 
@@ -362,7 +523,7 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
                     showToast(context?.getString(R.string.logout_null_error)!!)
                 }
             }
-            restoreNetworkDB(label, photoURL, username)
+            restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
             mainActivityPresentation?.startLoginIntent()
         } else {
             showToast(context?.getString(R.string.no_internet_connection)!!)
@@ -373,6 +534,7 @@ class MainActivityPresenter @Inject constructor(private val githubUserSearchData
         showToast(context?.getString(R.string.session_token_expired) ?: "Session token expired")
         mainActivityPresentation?.startLoginIntent()
     }
+
 
     fun onDestroyPresenter(){
         compositeDisposable.dispose()

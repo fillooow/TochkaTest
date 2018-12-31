@@ -10,7 +10,8 @@ import javax.inject.Singleton
     ApplicationModule::class,
     SocialNetworkDbModule::class,
     UserSearchDbModule::class,
-    GoogleModule::class])
+    GoogleModule::class,
+    RetrofitGithubSearchUserApiModule::class])
 interface ApplicationComponent {
 
     fun inject(target: MainActivity)

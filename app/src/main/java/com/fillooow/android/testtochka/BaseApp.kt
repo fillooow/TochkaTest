@@ -5,10 +5,7 @@ import com.facebook.FacebookSdk
 import com.facebook.appevents.AppEventsLogger
 import com.fillooow.android.testtochka.di.component.ApplicationComponent
 import com.fillooow.android.testtochka.di.component.DaggerApplicationComponent
-import com.fillooow.android.testtochka.di.module.ApplicationModule
-import com.fillooow.android.testtochka.di.module.GoogleModule
-import com.fillooow.android.testtochka.di.module.UserSearchDbModule
-import com.fillooow.android.testtochka.di.module.SocialNetworkDbModule
+import com.fillooow.android.testtochka.di.module.*
 import com.vk.sdk.VKSdk
 
 class BaseApp : Application(){
@@ -32,5 +29,6 @@ class BaseApp : Application(){
                 .socialNetworkDbModule(SocialNetworkDbModule())
                 .userSearchDbModule(UserSearchDbModule(app))
                 .googleModule(GoogleModule(app))
+                .retrofitGithubSearchUserApiModule(RetrofitGithubSearchUserApiModule())
                 .build()
 }

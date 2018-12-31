@@ -5,20 +5,18 @@ import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchMod
 
 interface MainActivityPresentation {
 
-    fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>)
+    //fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>, editTextString: String)
 
-    fun setSocialNetworkResults(t: SocialNetworkData)
-    fun errorEmptyResult()
+    //fun setSocialNetworkResults(t: SocialNetworkData)
 
-    fun setSuccessfulLoadedUiResults(
-        lastSearchTextDB: String?,
-        nextBtnEnabledDB: Boolean,
-        prevBtnEnabledDB: Boolean,
-        totalPagesDB: Int,
-        currentPageDB: Int,
-        totalCountDB: Int,
-        hasBtnClickedDB: Boolean
-    )
+    fun setSuccessfulLoadedUiResults(lastSearchTextDB: String?)
 
     fun startLoginIntent()
+    fun updateUI(currentPage: Int,totalPages: Int, totalCount: Int)
+    //fun updateItems(items: ArrayList<UserSearchModel.Items>)
+    //fun onErrorLoadItems()
+    fun setButtonsState(isNextEnables: Boolean, isPrevEnabled: Boolean)
+    fun setSupportActionBarTitle(barTitle: String)
+    //fun textChangeAndHasConnection()
+    fun setUserProfile(username: String?)
 }

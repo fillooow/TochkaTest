@@ -1,9 +1,7 @@
 package com.fillooow.android.testtochka.ui
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
-import android.net.ConnectivityManager
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.app.ActionBarDrawerToggle
 import android.support.v7.widget.LinearLayoutManager
@@ -11,26 +9,13 @@ import android.support.v7.widget.RecyclerView
 import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.Toast
-import com.facebook.AccessToken
-import com.facebook.login.LoginManager
 import com.fillooow.android.testtochka.BaseApp
 import com.fillooow.android.testtochka.BusinessLogic.database.SocialNetwork.SocialNetworkData
-import com.fillooow.android.testtochka.BusinessLogic.network.ApiError
+import com.fillooow.android.testtochka.BusinessLogic.network.ConnectivityUtils
 import com.fillooow.android.testtochka.R
-import com.fillooow.android.testtochka.ui.MainActivity.ConnectivityUtils.hasConnection
-import com.fillooow.android.testtochka.BusinessLogic.network.GithubApiService
 import com.fillooow.android.testtochka.BusinessLogic.network.model.UserSearchModel
-import com.google.android.gms.auth.api.Auth
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.GoogleApiClient
 import com.jakewharton.rxbinding2.widget.RxTextView
-import com.vk.sdk.VKAccessToken
-import com.vk.sdk.VKAccessTokenTracker
-import com.vk.sdk.VKSdk
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -38,12 +23,11 @@ import javax.inject.Inject
 class MainActivity : AppCompatActivity(), MainActivityPresentation {
 
     companion object {
-        private const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
+        const val ELEMENTS_PER_PAGE = 30 // Количество отображаемых на странице элементов
         private const val MAX_ELEMENTS = 1000 // Для OpenAPI гитхаба, можно получить лишь первую 1000 результатов.
-        private const val MAX_PAGE = (MAX_ELEMENTS/ELEMENTS_PER_PAGE) + 1 // Определяем максимально доступную
+        const val MAX_PAGE = (MAX_ELEMENTS/ELEMENTS_PER_PAGE) + 1 // Определяем максимально доступную
         // страницу исходя из количества доступных результатов и отображаемых элементов
 
-        private const val GITHUB_TAG = "GITHUB_TAG"
         // Request code for loginIntent at onActivityResult()
         private const val RC_LOGIN = 9991
 
@@ -57,21 +41,7 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         private const val STATE_HAS_BTN_CLICKED = "hasBtnClicked"
     }
 
-    object ConnectivityUtils{
-        fun hasConnection(context: Context?): Boolean{
-            val cm: ConnectivityManager = context?.applicationContext
-                ?.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val connectInfo = cm.activeNetworkInfo
-            if (connectInfo != null && connectInfo.isConnected){
-                return true
-            }
-            return false
-        }
-    }
-
-    private val githubApiService by lazy {
-        GithubApiService.create()
-    }
+    private var connectivityUtils = ConnectivityUtils()
 
     @Inject lateinit var mainActivityPresenter: MainActivityPresenter
 
@@ -89,12 +59,9 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
     private var isPrevBtnEnabled = false
     private var hasBtnClicked = false // Отслеживает, был ли сделан запрос с кнопок навигации (Далее, назад)
     private var itemsList = ArrayList<UserSearchModel.Items>()
-    private lateinit var gso: GoogleSignInOptions
-    private lateinit var mGoogleApiClient: GoogleApiClient
 
     private lateinit var userAdapter: UserSearchAdapter
     private lateinit var rvUsers: RecyclerView
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,60 +72,65 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         mainActivityPresenter.initInterfaces(this)
         mainActivityPresenter.loadSocialNetworkLabel()
 
-        currentPageBeforeChanging = currentPage
+        //currentPageBeforeChanging = currentPage
 
         setSupportActionBar(toolbar)
         initialiseDrawer()
         rvUsers = findViewById(R.id.rvMain)
         rvUsers.layoutManager = LinearLayoutManager(this, LinearLayout.VERTICAL, false)
 
-        userAdapter = UserSearchAdapter(itemsList, applicationContext)
+        userAdapter = UserSearchAdapter(mainActivityPresenter.itemsList, applicationContext)
         rvUsers.adapter = userAdapter
 
         nextPageButton.setOnClickListener {
-            loadNextPage()
+            mainActivityPresenter.loadNextPage(inputET.text.toString())
         }
         previousPageButton.setOnClickListener {
-            loadPrevPage()
+            mainActivityPresenter.loadPrevPage(inputET.text.toString())
         }
 
-        restoreInstanceState(savedInstanceState)
+        // TODO:
+        //restoreInstanceState(savedInstanceState)
 
-        compositeDisposable.add(
+        mainActivityPresenter.setRxEditTextListener(inputET)
+
+        /*compositeDisposable.add(
             RxTextView.afterTextChangeEvents(inputET)
                 .debounce(600, TimeUnit.MILLISECONDS)
                 .subscribe{
-                    if(hasConnection(applicationContext)) {
+                    if(connectivityUtils.hasConnection(applicationContext)) {
                         hasBtnClicked = false
                         var searchText = inputET.text.toString()
                         searchText = removeSpaces(searchText)
                         if ((lastSearchText == "") && (searchText == "")){
-                            runOnUiThread{
-                                supportActionBar?.title = getString(R.string.empty_request)
-                            }
+                            setSupportActionBarTitle(getString(R.string.empty_request))
                         } else if (searchText != lastSearchText){
-                            loadUserItems(searchText, currentPage)
+                            checkBeforeLoadingUserItems(searchText, currentPage)
                         }
                     } else {
                         mainActivityPresenter.showToast(getString(R.string.no_internet_connection))
                     }
                 }
-        )
+        )*/
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != Activity.RESULT_OK){
-            // Если была нажата кнопка Назад в LoginActivity или результатом пришла неудача
-            finish()
+            finish() // Если была нажата кнопка Назад в LoginActivity или результатом пришла неудача
             return
         }
         if(requestCode == RC_LOGIN){
-            socialNetworkLabel = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_SOCIAL_NETWORK_LABEL)
-            userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME).toString()
-            userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
-            setUserProfile()
-            mainActivityPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
+            mainActivityPresenter.setOnActivityResultData(
+                data?.getStringExtra(LoginActivity.EXTRA_LOGIN_SOCIAL_NETWORK_LABEL),
+                data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME),
+                data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)
+            )
+            /*socialNetworkLabel = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_SOCIAL_NETWORK_LABEL)
+            userName = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_NAME)//.toString()
+            userPhotoUrl = data?.getStringExtra(LoginActivity.EXTRA_LOGIN_USER_PHOTO_URL)*/
+            //setUserProfile()
+            //mainActivityPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
         }
     }
 
@@ -191,86 +163,72 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
                     mainActivityPresenter.showToast("bop")
                 }
                 R.id.action_logout -> {
-                    mainActivityPresenter.initializeLogoutBtn(socialNetworkLabel, userPhotoUrl, userName)
-                    socialNetworkLabel = null
-                    //initializeLogoutBtn(socialNetworkLabel)
+                    mainActivityPresenter.initializeLogoutBtn()
+                    //socialNetworkLabel = null
                 }
             }
             true
         }
     }
 
-    private fun loadNextPage(){
+    override fun setButtonsState(isNextEnables: Boolean, isPrevEnabled: Boolean) {
+        nextPageButton.isEnabled = isNextEnables
+        previousPageButton.isEnabled = isPrevEnabled
+    }
+
+    /*private fun loadNextPage(){
         hasBtnClicked = true
         currentPageBeforeChanging = currentPage
         currentPage++
-        loadUserItems(inputET.text.toString(), currentPage)
-    }
+        checkBeforeLoadingUserItems(inputET.text.toString(), currentPage)
+    }*/
 
-    private fun loadPrevPage(){
+    /*private fun loadPrevPage(){
         hasBtnClicked = true
         currentPageBeforeChanging = currentPage
         currentPage--
-        loadUserItems(inputET.text.toString(), currentPage)
-    }
+        checkBeforeLoadingUserItems(inputET.text.toString(), currentPage)
+    }*/
 
-    private fun removeSpaces(text: String) : String{
-        return text.trim().replace("[\\s]{2,}", " ")
-    }
+    /*override fun updateItems(items: ArrayList<UserSearchModel.Items>) {
+        for (item in items){
+            itemsList.add(item)
+        }
+    }*/
 
-    // Gets users from Github Open API
-    private fun loadUserItems(searchText: String, page: Int){
+    /*override fun onErrorLoadItems() {
+        currentPage = currentPageBeforeChanging
+    }*/
+
+    /*fun checkBeforeLoadingUserItems(searchText: String, page: Int){
         itemsList.clear()
         if (searchText == ""){
-            runOnUiThread {
-                totalPages = 0
-                currentPage = 0
-                updateUI()
-                supportActionBar?.title = getString(R.string.empty_request)
-            }
+            totalPages = 0
+            currentPage = 0
+            updateUI()
+            setSupportActionBarTitle(getString(R.string.empty_request))
         } else {
-            compositeDisposable.add(
-                githubApiService
-                .searchUser(searchText, page)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({
-                    totalCount = it.total_count
-                    totalPages = countPages(totalCount)
-                    for (item in it.items) {
-                        itemsList.add(item)
-                    }
-                    updateUI()
-                }, {
-                    val errMessage = ApiError(it).errorMessage
-                    if (errMessage.contains("API rate limit exceeded")){
-                        mainActivityPresenter.showToast(getString(R.string.API_rate_limit_exceeded))
-                        currentPage = currentPageBeforeChanging
-                    }
-                }))
+            mainActivityPresenter.loadUserItems(searchText, page)
         }
         lastSearchText = searchText
-    }
+    }*/
 
-    private fun countPages(totalCount: Int): Int {
-        if (totalCount <= 0) {
-            return 0
-        }
-        return (totalCount/ELEMENTS_PER_PAGE) + 1
-    }
-
-    private fun updateUI(){
-        setUpCurrentPage()
+    override fun updateUI(currentPage: Int,totalPages: Int, totalCount: Int){
+        mainActivityPresenter.setUpCurrentPage()
+        setSupportActionBarTitle(getString(R.string.total_found, totalCount))
         pageCounterTV.text = getString(R.string.page_counter, currentPage, totalPages)
-        supportActionBar?.title = getString(R.string.total_found, totalCount)
-        pageCounterTV.text  = getString(R.string.page_counter, currentPage, totalPages)
         userAdapter.notifyDataSetChanged()
-        mainActivityPresenter.restoreUiInfo(lastSearchText, isNextBtnEnabled, isPrevBtnEnabled, totalPages,
-            currentPage, totalCount, hasBtnClicked)
-        mainActivityPresenter.restoreResponseList(itemsList)
+        mainActivityPresenter.restoreUiInfo()
+        mainActivityPresenter.restoreResponseList()
     }
 
-    private fun setUpCurrentPage() {
+    override fun setSupportActionBarTitle(barTitle: String) {
+        runOnUiThread{
+            supportActionBar?.title = barTitle
+        }
+    }
+
+    /*private fun setUpCurrentPage() {
         if (hasBtnClicked == false){
             currentPage = 1
         }
@@ -282,71 +240,17 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
                 currentPage = 1
             }
         }
-        setUpSearchButtons()
-    }
+        mainActivityPresenter.setUpSearchButtons(currentPage, totalPages)
+    }*/
 
-    private fun setUpSearchButtons(){
-        when{
-            currentPage == 0 -> {
-                isNextBtnEnabled = false
-                isPrevBtnEnabled = false
-            }
-            currentPage == 1 -> {
-                isNextBtnEnabled = totalPages >= 2
-                isPrevBtnEnabled = false
-            }
-            currentPage == MAX_PAGE -> {
-                isNextBtnEnabled = false
-                mainActivityPresenter.showToast(getString(R.string.reached_max_page))
-            }
-            currentPage > 1 -> {
-                isNextBtnEnabled = totalPages > currentPage
-                isPrevBtnEnabled = currentPage > 1
-            }
-
-        }
-        nextPageButton.isEnabled = isNextBtnEnabled
-        previousPageButton.isEnabled = isPrevBtnEnabled
-    }
-
-    private fun setUserProfile(){
-        drawer_user_name.text = userName
-        // google+ may return "null" as an answer, if user don't have profile picture
+    override fun setUserProfile(username: String?){
+        drawer_user_name.text = username
+        /*// google+ may return "null" as an answer, if user don't have profile picture
         if (userPhotoUrl == "null"){
             userPhotoUrl = "https://www.scirra.com/images/articles/windows-8-user-account.jpg"
-        }
-        mainActivityPresenter.setUserPhoto(userPhotoUrl, drawer_user_photo)
+        }*/
+        mainActivityPresenter.setUserPhoto(drawer_user_photo)
     }
-
-
-    /*private fun initializeLogoutBtn(label: String?){
-        if (hasConnection(applicationContext)) {
-            when (label) {
-                LoginActivity.GOOGLE_LABEL -> {
-                    Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback {
-
-                    }
-                }
-                LoginActivity.FACEBOOK_LABEL -> {
-                    LoginManager.getInstance().logOut()
-                }
-                LoginActivity.VKONTAKTE_LABEL -> {
-                    VKSdk.logout()
-                }
-                null -> {
-                    Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(this, getString(R.string.logout_null_error), Toast.LENGTH_SHORT).show()
-                }
-            }
-            socialNetworkLabel = null
-            mainActivityPresenter.restoreNetworkDB(socialNetworkLabel, userPhotoUrl, userName)
-            startLoginIntent()
-        } else {
-            mainActivityPresenter.showToast(getString(R.string.no_internet_connection))
-        }
-    }*/
 
     override fun startLoginIntent(){
         val intent = Intent(this, LoginActivity::class.java)
@@ -354,7 +258,8 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
         startActivityForResult(intent, RC_LOGIN)
     }
 
-    override fun onSaveInstanceState(outState: Bundle?) {
+    // TODO:
+    /*override fun onSaveInstanceState(outState: Bundle?) {
         super.onSaveInstanceState(outState)
         outState?.putString(STATE_LAST_SEARCH_TEXT, lastSearchText)
         outState?.putBoolean(STATE_IS_NEXT_BTN_ENABLED, isNextBtnEnabled)
@@ -375,89 +280,34 @@ class MainActivity : AppCompatActivity(), MainActivityPresentation {
             totalCount = savedInstanceState.getInt(STATE_TOTAL_COUNT)
             hasBtnClicked = savedInstanceState.getBoolean(STATE_HAS_BTN_CLICKED)
         }
+    }*/
+
+    override fun setSuccessfulLoadedUiResults(lastSearchTextDB: String?){
+        inputET.setText(lastSearchTextDB)
     }
 
-    override fun setSuccessfulLoadedUiResults(lastSearchTextDB: String?, nextBtnEnabledDB: Boolean,
-        prevBtnEnabledDB: Boolean, totalPagesDB: Int, currentPageDB: Int, totalCountDB: Int, hasBtnClickedDB: Boolean) {
-        lastSearchText = lastSearchTextDB
-        isNextBtnEnabled = nextBtnEnabledDB
-        isPrevBtnEnabled = prevBtnEnabledDB
-        totalPages = totalPagesDB
-        currentPage = currentPageDB
-        totalCount = totalCountDB
-        hasBtnClicked = hasBtnClickedDB
-        inputET.setText(lastSearchText)
-        updateUI()
-    }
-
-    override fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>) {
+    /*override fun setSuccessfulLoadedItemsList(items: ArrayList<UserSearchModel.Items>, editTextString: String) {
         if (items.isEmpty()){
-            loadUserItems(lastSearchText ?: inputET.text.toString(), currentPage)
+            checkBeforeLoadingUserItems(lastSearchText ?: editTextString, currentPage)
         } else {
             itemsList = items
             userAdapter.notifyDataSetChanged()
         }
-    }
-
-    override fun setSocialNetworkResults(t: SocialNetworkData) {
-        // TODO: загнать в переменные метода, чтобы не плодить 3 строки лишних (лул)
-        socialNetworkLabel = t.label
-        userName = t.username
-        userPhotoUrl = t.photoURL
-        setUserProfile()
-        mainActivityPresenter.checkSocialNetworkTokenState(socialNetworkLabel)
-    }
-
-    override fun errorEmptyResult() {
-        startLoginIntent()
-    }
-
-    /*fun checkSocialNetworkTokenState(label: String?) {
-        when (label){
-            LoginActivity.GOOGLE_LABEL -> {
-                gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestEmail()
-                    .build()
-                mGoogleApiClient = GoogleApiClient.Builder(this)
-                    .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
-                    .build()
-                mGoogleApiClient.connect()
-                val opr = Auth.GoogleSignInApi.silentSignIn(mGoogleApiClient)
-                if (!opr.isDone){
-                    expiredSession()
-                }
-            }
-            LoginActivity.FACEBOOK_LABEL -> {
-                val token = AccessToken.getCurrentAccessToken()
-                if (token == null || token.isExpired){
-                    expiredSession()
-                }
-            }
-            LoginActivity.VKONTAKTE_LABEL -> {
-                val vkAccessTokenTracker = object : VKAccessTokenTracker(){
-                    override fun onVKAccessTokenChanged(oldToken: VKAccessToken?, newToken: VKAccessToken?) {
-                        if (newToken == null){
-                            expiredSession()
-                        }
-                    }
-                }
-                vkAccessTokenTracker.startTracking()
-            }
-            null -> {
-                startLoginIntent()
-            }
-        }
     }*/
 
-    /*private fun expiredSession(){
-        mainActivityPresenter.showToast(getString(R.string.session_token_expired))
-        startLoginIntent()
+    /*override fun setSocialNetworkResults(t: SocialNetworkData) {
+        // TODO: загнать в переменные метода, чтобы не плодить 3 строки лишних (лул)
+        /*socialNetworkLabel = t.label
+        userName = t.username
+        userPhotoUrl = t.photoURL*/
+        setUserProfile()
+        //mainActivityPresenter.checkSocialNetworkTokenState(socialNetworkLabel)
     }*/
 
     override fun onStart() {
         super.onStart()
         mainActivityPresenter.loadUiInfo()
-        mainActivityPresenter.loadResponseList(itemsList)
+        mainActivityPresenter.loadResponseList(inputET.text.toString())
     }
 
     override fun onStop() {
