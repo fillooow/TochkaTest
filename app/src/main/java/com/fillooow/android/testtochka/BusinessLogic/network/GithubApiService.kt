@@ -15,15 +15,4 @@ interface GithubApiService{
     fun searchUser(@Query("q") q: String,
                    @Query("page") page: Int) : Observable<UserSearchModel.Result>
 
-    companion object {
-        fun create(): GithubApiService{
-            val retrofit = Retrofit.Builder()
-                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                .addConverterFactory(GsonConverterFactory.create())
-                .baseUrl("https://api.github.com/")
-                .build()
-
-            return retrofit.create(GithubApiService::class.java)
-        }
-    }
 }

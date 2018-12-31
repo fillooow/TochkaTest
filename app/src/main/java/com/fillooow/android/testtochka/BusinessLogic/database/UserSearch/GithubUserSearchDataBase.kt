@@ -11,23 +11,4 @@ abstract class GithubUserSearchDataBase : RoomDatabase(){
     abstract fun githubUserSearchDataDao(): GithubUserSearchDataDao
     abstract fun uiUserSearchDataDao(): UiInfoUserSearchDataDao
 
-    companion object {
-        private var INSTANCE: GithubUserSearchDataBase? = null
-
-        fun getInstance(context: Context): GithubUserSearchDataBase?{
-            if (INSTANCE == null){
-                synchronized(GithubUserSearchDataBase::class){
-                    INSTANCE = Room.databaseBuilder(context.applicationContext,
-                        GithubUserSearchDataBase::class.java,
-                        "github.db")
-                        .build()
-                }
-            }
-            return INSTANCE
-        }
-
-        fun destroyInstance(){
-            INSTANCE = null
-        }
-    }
 }

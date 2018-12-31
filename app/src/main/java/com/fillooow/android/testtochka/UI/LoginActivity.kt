@@ -8,6 +8,7 @@ import android.util.Log
 import android.widget.Toast
 import com.facebook.*
 import com.facebook.login.LoginResult
+import com.fillooow.android.testtochka.BusinessLogic.network.ConnectivityUtils
 import com.fillooow.android.testtochka.R
 import com.google.android.gms.auth.api.Auth
 import com.google.android.gms.auth.api.signin.*
@@ -36,6 +37,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
 
     private var userName: String? = null
     private var userPhotoUrl: String? = null
+    private var connectivityUtils = ConnectivityUtils()
     var socialNetworkLabel: String? = null
 
     // google
@@ -143,7 +145,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     private fun signInGoogle() {
-        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+        if (connectivityUtils.hasConnection(applicationContext)) {
             val signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient)
             startActivityForResult(signInIntent, GOOGLE_RC_SIGN_IN)
         } else {
@@ -177,7 +179,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     private fun signInFB(){
-        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+        if (connectivityUtils.hasConnection(applicationContext)) {
             signInFacebookButton.registerCallback(callbackManager, object : FacebookCallback<LoginResult> {
                 override fun onSuccess(result: LoginResult) {
                     getUserInfoFb(result)
@@ -221,7 +223,7 @@ class LoginActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedLis
     }
 
     fun signInVk(){
-        if (MainActivity.ConnectivityUtils.hasConnection(applicationContext)) {
+        if (connectivityUtils.hasConnection(applicationContext)) {
             VKSdk.login(
                 this,
                 VKScope.PHOTOS,
